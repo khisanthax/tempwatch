@@ -1,7 +1,7 @@
 ﻿import { FormEvent, useEffect, useState } from "react";
 
-import { createPrinter, fetchPrinters } from "../lib/api";
-import type { PrinterCreateInput, PrinterProfile } from "../types/thermal";
+import { checkPrinterConnection, createPrinter, fetchPrinters } from "../lib/api";
+import type { PrinterConnectionCheck, PrinterCreateInput, PrinterProfile } from "../types/thermal";
 
 const initialForm: PrinterCreateInput = {
   name: "",
@@ -14,6 +14,8 @@ const initialForm: PrinterCreateInput = {
 export function PrintersPage() {
   const [printers, setPrinters] = useState<PrinterProfile[]>([]);
   const [form, setForm] = useState<PrinterCreateInput>(initialForm);
+  const [checks, setChecks] = useState<Record<number, PrinterConnectionCheck>>({});
+  const [isChecking, setIsChecking] = useState<Record<number, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,20 @@ export function PrintersPage() {
       setError(submitError instanceof Error ? submitError.message : "Failed to save printer");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleConnectionCheck(printerId: number) {
+    setIsChecking((current) => ({ ...current, [printerId]: true }));
+    setError(null);
+
+    try {
+      const result = await checkPrinterConnection(printerId);
+      setChecks((current) => ({ ...current, [printerId]: result }));
+    } catch (checkError) {
+      setError(checkError instanceof Error ? checkError.message : "Connection check failed");
+    } finally {
+      setIsChecking((current) => ({ ...current, [printerId]: false }));
     }
   }
 
@@ -146,21 +162,44 @@ export function PrintersPage() {
           ) : null}
 
           {!isLoading && printers.length > 0
-            ? printers.map((printer) => (
-                <article className="panel stack-sm" key={printer.id}>
-                  <div className="printer-card-header">
-                    <div>
-                      <h4>{printer.name}</h4>
-                      <p className="muted">{printer.base_url}</p>
+            ? printers.map((printer) => {
+                const check = checks[printer.id];
+                return (
+                  <article className="panel stack-sm" key={printer.id}>
+                    <div className="printer-card-header">
+                      <div>
+                        <h4>{printer.name}</h4>
+                        <p className="muted">{printer.base_url}</p>
+                      </div>
+                      <span className={printer.is_enabled ? "status-pill active" : "status-pill inactive"}>
+                        {printer.is_enabled ? "Enabled" : "Disabled"}
+                      </span>
                     </div>
-                    <span className={printer.is_enabled ? "status-pill active" : "status-pill inactive"}>
-                      {printer.is_enabled ? "Enabled" : "Disabled"}
-                    </span>
-                  </div>
 
-                  {printer.notes ? <p>{printer.notes}</p> : <p className="muted">No notes yet.</p>}
-                </article>
-              ))
+                    {printer.notes ? <p>{printer.notes}</p> : <p className="muted">No notes yet.</p>}
+
+                    <div className="card-actions">
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => void handleConnectionCheck(printer.id)}
+                        disabled={Boolean(isChecking[printer.id])}
+                      >
+                        {isChecking[printer.id] ? "Checking..." : "Check connection"}
+                      </button>
+                    </div>
+
+                    {check ? (
+                      <div className={check.reachable ? "connection-result success" : "connection-result failure"}>
+                        <strong>{check.reachable ? "Moonraker reachable" : "Moonraker unreachable"}</strong>
+                        <span>{check.message}</span>
+                        {check.moonraker_version ? <span>Version: {check.moonraker_version}</span> : null}
+                        {check.klippy_state ? <span>Klippy: {check.klippy_state}</span> : null}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
             : null}
         </div>
       </div>

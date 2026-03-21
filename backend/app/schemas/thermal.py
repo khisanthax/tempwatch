@@ -33,6 +33,15 @@ class PrinterRead(PrinterBase):
     updated_at: datetime
 
 
+class PrinterConnectionCheckRead(BaseModel):
+    printer_id: int
+    reachable: bool
+    status_code: int | None
+    message: str
+    moonraker_version: str | None
+    klippy_state: str | None
+
+
 class SessionStartRequest(BaseModel):
     label: str | None = Field(default=None, max_length=160)
 

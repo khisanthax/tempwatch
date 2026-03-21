@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.thermal import PrinterCreate, PrinterRead, PrinterUpdate
+from app.schemas.thermal import PrinterConnectionCheckRead, PrinterCreate, PrinterRead, PrinterUpdate
 from app.services.session_lifecycle import SessionLifecycleService
 
 router = APIRouter(prefix="/printers", tags=["printers"])
@@ -27,4 +27,11 @@ def get_printer(printer_id: int, db: Session = Depends(get_db)) -> PrinterRead:
 def update_printer(printer_id: int, payload: PrinterUpdate, db: Session = Depends(get_db)) -> PrinterRead:
     service = SessionLifecycleService(db)
     printer = service.get_printer(printer_id)
-    return service.update_printer(printer, **payload.model_dump())
+    return service.update_printer(printer, **payload.model_dump(exclude_unset=True))
+
+
+@router.get("/{printer_id}/connection-check", response_model=PrinterConnectionCheckRead)
+def check_printer_connection(printer_id: int, db: Session = Depends(get_db)) -> PrinterConnectionCheckRead:
+    service = SessionLifecycleService(db)
+    printer = service.get_printer(printer_id)
+    return service.check_printer_connection(printer)

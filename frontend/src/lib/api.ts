@@ -1,4 +1,4 @@
-﻿import type { PrinterCreateInput, PrinterProfile } from "../types/thermal";
+﻿import type { PrinterConnectionCheck, PrinterCreateInput, PrinterProfile } from "../types/thermal";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
@@ -36,4 +36,9 @@ export async function createPrinter(payload: PrinterCreateInput): Promise<Printe
   });
 
   return readJson<PrinterProfile>(response);
+}
+
+export async function checkPrinterConnection(printerId: number): Promise<PrinterConnectionCheck> {
+  const response = await fetch(`${apiBaseUrl}/printers/${printerId}/connection-check`);
+  return readJson<PrinterConnectionCheck>(response);
 }

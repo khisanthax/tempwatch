@@ -100,7 +100,8 @@ textarea {
 .page-header,
 .printer-card-header,
 .section-label,
-.checkbox-row {
+.checkbox-row,
+.card-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -192,6 +193,24 @@ textarea {
 .status-pill.inactive {
   background: #eceff4;
   color: #576475;
+}
+
+.connection-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+}
+
+.connection-result.success {
+  background: #e8f7ef;
+  color: #205a38;
+}
+
+.connection-result.failure {
+  background: #fff0ee;
+  color: #7a2219;
 }
 
 .muted {
