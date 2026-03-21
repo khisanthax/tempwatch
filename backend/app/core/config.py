@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     api_port: int = 8000
     database_url: str = Field(default="sqlite:///./tempwatch.db")
     session_max_duration_hours: int = 96
+    sample_interval_seconds: float = 1.0
+    recording_loop_interval_seconds: float = 1.0
 
 
 @lru_cache

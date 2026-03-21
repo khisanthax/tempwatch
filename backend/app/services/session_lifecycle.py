@@ -1,7 +1,7 @@
-﻿from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, desc, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -82,6 +82,15 @@ class SessionLifecycleService:
             stmt = stmt.where(RecordingSession.status == status_filter)
         return list(self.db.scalars(stmt))
 
+    def list_active_sessions(self) -> list[RecordingSession]:
+        self._expire_stale_sessions()
+        stmt: Select[tuple[RecordingSession]] = (
+            select(RecordingSession)
+            .where(RecordingSession.status == SessionStatus.ACTIVE)
+            .order_by(RecordingSession.started_at.asc())
+        )
+        return list(self.db.scalars(stmt))
+
     def start_session(self, *, printer: PrinterProfile, label: str | None = None) -> RecordingSession:
         if not printer.is_enabled:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Printer is disabled")
@@ -101,6 +110,7 @@ class SessionLifecycleService:
 
         session = RecordingSession(printer_id=printer.id, label=label.strip() if label else None)
         self.db.add(session)
+        self._record_event(session, event_type="session-started", message="Recording session started")
         self.db.commit()
         self.db.refresh(session)
         return session
@@ -167,6 +177,34 @@ class SessionLifecycleService:
         return list(self.db.scalars(stmt))
 
     def capture_sample(self, session: RecordingSession) -> dict[str, RecordingSession | TemperatureSample]:
+        sample = self._capture_sample_record(session)
+        self.db.commit()
+        self.db.refresh(sample)
+        self.db.refresh(session)
+        return {"session": session, "sample": sample}
+
+    def capture_sample_if_due(self, session: RecordingSession) -> TemperatureSample | None:
+        if session.status != SessionStatus.ACTIVE:
+            return None
+
+        last_sample = self._get_latest_sample(session.id)
+        if last_sample is not None:
+            elapsed = datetime.now(UTC) - self._coerce_utc(last_sample.captured_at)
+            if elapsed.total_seconds() < settings.sample_interval_seconds:
+                return None
+
+        sample = self._capture_sample_record(session)
+        self.db.commit()
+        self.db.refresh(sample)
+        return sample
+
+    def check_printer_connection(self, printer: PrinterProfile) -> dict[str, str | int | bool | None]:
+        return {
+            "printer_id": printer.id,
+            **self.moonraker.check_connection(printer),
+        }
+
+    def _capture_sample_record(self, session: RecordingSession) -> TemperatureSample:
         if session.status != SessionStatus.ACTIVE:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Samples can only be captured for active sessions")
 
@@ -174,17 +212,16 @@ class SessionLifecycleService:
         snapshot = self.moonraker.fetch_temperature_snapshot(printer)
         sample = TemperatureSample(session_id=session.id, **snapshot)
         self.db.add(sample)
-        self._record_event(session, event_type="sample-captured", message="Temperature snapshot captured")
-        self.db.commit()
-        self.db.refresh(sample)
-        self.db.refresh(session)
-        return {"session": session, "sample": sample}
+        return sample
 
-    def check_printer_connection(self, printer: PrinterProfile) -> dict[str, str | int | bool | None]:
-        return {
-            "printer_id": printer.id,
-            **self.moonraker.check_connection(printer),
-        }
+    def _get_latest_sample(self, session_id: int) -> TemperatureSample | None:
+        stmt: Select[tuple[TemperatureSample]] = (
+            select(TemperatureSample)
+            .where(TemperatureSample.session_id == session_id)
+            .order_by(desc(TemperatureSample.captured_at))
+            .limit(1)
+        )
+        return self.db.scalar(stmt)
 
     def _ensure_printer_uniqueness(self, *, name: str, base_url: str, exclude_id: int | None = None) -> None:
         stmt = select(PrinterProfile).where(or_(PrinterProfile.name == name, PrinterProfile.base_url == base_url))
@@ -230,7 +267,7 @@ class SessionLifecycleService:
         return True
 
     def _record_event(self, session: RecordingSession, *, event_type: str, message: str) -> None:
-        event = ThermalEvent(session_id=session.id, event_type=event_type, message=message)
+        event = ThermalEvent(session=session, event_type=event_type, message=message)
         self.db.add(event)
 
     @staticmethod

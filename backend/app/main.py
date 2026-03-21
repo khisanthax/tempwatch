@@ -1,4 +1,5 @@
-﻿from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,14 +7,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
 from app.core.config import get_settings
 from app.db.init_db import init_db
+from app.services.recording_loop import RecordingLoop
 
 settings = get_settings()
+recording_loop = RecordingLoop()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
-    yield
+    stop_event = asyncio.Event()
+    task = asyncio.create_task(recording_loop.run(stop_event))
+    try:
+        yield
+    finally:
+        stop_event.set()
+        await task
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

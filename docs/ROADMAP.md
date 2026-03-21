@@ -27,6 +27,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - FastAPI application under `backend/`.
 - SQLAlchemy ORM with SQLite for local persistence.
 - Service layer for printer profiles, session lifecycle, and Moonraker integration.
+- In-process recording loop for active session polling while the backend is running.
 - Background connection components for Moonraker websocket ingestion during active sessions.
 - Pydantic settings for environment-driven configuration.
 
@@ -47,8 +48,9 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 ### Moonraker Strategy
 
 - Current baseline: HTTP connectivity check against `server/info`.
-- Active-session sample capture now uses HTTP object queries against `printer/objects/query`.
-- Follow-up: extend the Moonraker client into websocket-backed live ingestion once sample persistence is stable.
+- Active-session sample capture uses HTTP object queries against `printer/objects/query`.
+- Automated recording uses an in-process polling loop to capture roughly one sample per second for active sessions.
+- Follow-up: extend the Moonraker client into websocket-backed live ingestion once the polling-based recording path is stable.
 - Normalize nozzle, bed, chamber, target, power, fan, and state metadata where available.
 
 ## Phased Implementation Plan
@@ -101,18 +103,20 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - [x] Printer profile CRUD implemented.
 - [x] Session lifecycle foundation implemented.
 - [x] Sample persistence implemented.
+- [x] Automated active-session capture implemented.
 - [ ] Saved/comparison flows implemented.
 - [ ] First diagnostic features implemented.
 
 ## Current Status
 
 - Repository is initialized on `main` and pushed to GitHub.
-- Backend FastAPI app runs from `backend/app` with config, SQLAlchemy setup, and automatic table creation.
-- Frontend React app now includes printer management plus a session workflow page.
+- Backend FastAPI app runs from `backend/app` with config, SQLAlchemy setup, automatic table creation, and an in-process recording loop.
+- Frontend React app includes printer management plus a session workflow page.
 - Printer profile CRUD endpoints and session lifecycle endpoints exist.
 - Session states currently support `active`, `completed`, `saved`, and `discarded`.
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
-- Active sessions can capture normalized Moonraker temperature snapshots into persistent sample rows.
+- Active sessions can capture normalized Moonraker temperature snapshots into persistent sample rows manually or through the background polling loop.
+- If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
 - The frontend can start sessions, stop active sessions, capture manual samples, and inspect captured sample rows for a selected session.
 - Moonraker websocket streaming/data ingestion has not started yet.
 
@@ -131,11 +135,13 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - SQLite returns naive datetimes for stored timestamps in this setup, so session cap enforcement now coerces database values to UTC before comparison.
 - Initial Moonraker integration is intentionally limited to an HTTP `server/info` connectivity check before websocket recording is introduced.
 - Snapshot ingestion uses Moonraker HTTP object queries first so data normalization and session persistence can be exercised before websocket complexity is added.
+- The next automated recording step uses an in-process polling loop because it fits the current single-backend deployment and keeps restart recovery straightforward.
+- Thermal events are reserved for meaningful lifecycle/state transitions rather than every captured sample to avoid unbounded event noise.
 - The first session UI intentionally focuses on operator control and inspection rather than live charting so the persisted sample flow can be verified end to end.
 
 ## Known Risks / Open Questions
 
-- Current sample capture is manual and request-driven; continuous recording still needs a scheduler or websocket worker model.
+- Automated sampling currently depends on the FastAPI process staying alive; a separate worker or websocket-driven path may still be needed for stronger resilience later.
 - Moonraker websocket ingestion and live graph updates are still missing.
 - Moonraker field availability varies by printer setup; sample normalization will need defensive handling for custom chamber sensors and alternate object names.
 - Session retention rules for unsaved completed sessions still need a product decision.
@@ -150,14 +156,15 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Repository hygiene cleanup became its own follow-up task after validation generated files that should not remain tracked.
 - Initial Moonraker work started with a narrow connectivity check rather than jumping straight to websocket streaming.
 - Sample ingestion is starting with HTTP snapshot capture instead of websocket streaming so the storage layer can be validated with a simpler execution path.
-- Session UI landed before automatic recording loops so manual capture and persisted sample review can be exercised from the browser now.
+- Session UI landed before automatic recording loops so manual capture and persisted sample review can be exercised from the browser first.
+- Automated recording is starting with an in-process polling loop rather than a separate worker so the app stays simple and locally runnable.
 
 ## Next Steps
 
-1. Add a lightweight recording loop or websocket ingestion path to automate sample collection during active sessions.
-2. Build a first live/recent sample graph view on top of persisted session samples.
-3. Add save/discard actions and saved-session browsing/comparison flows.
-4. Extend printer management with edit/delete actions and richer printer status views.
+1. Build a first live/recent sample graph view on top of persisted session samples and auto-refresh it for active sessions.
+2. Add save/discard actions and saved-session browsing/comparison flows.
+3. Extend printer management with edit/delete actions and richer printer status views.
+4. Evaluate when to replace or augment the polling loop with websocket-based ingestion.
 
 ## Recent Completed Work Log
 
@@ -169,6 +176,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - 2026-03-21: Added Moonraker connectivity diagnostics, printer uniqueness checks, and automatic stale-session cap enforcement.
 - 2026-03-21: Added persistent temperature samples, thermal events, and HTTP snapshot capture/list endpoints for active sessions.
 - 2026-03-21: Added a frontend sessions page for manual session control and sample inspection.
+- 2026-03-21: Added an automated polling loop that resumes active-session sample capture when the backend is running.
 
 ## Upcoming Commit Targets
 
@@ -177,4 +185,5 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Commit 3: Moonraker diagnostics, backend validation hardening, and active-session cap enforcement improvements.
 - Commit 4: Snapshot-based sample persistence and session capture foundations.
 - Commit 5: Session UI, sample visibility, and live-recording follow-up.
-- Commit 6: Automated recording loop and first graphing slice.
+- Commit 6: Automated recording loop for active sessions.
+- Commit 7: First live graphing slice and session detail polish.
