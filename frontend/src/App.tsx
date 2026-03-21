@@ -1,7 +1,8 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+﻿import { NavLink, Route, Routes } from "react-router-dom";
 
 import { DashboardPage } from "./pages/DashboardPage";
 import { PrintersPage } from "./pages/PrintersPage";
+import { SessionsPage } from "./pages/SessionsPage";
 
 export function App() {
   return (
@@ -22,6 +23,9 @@ export function App() {
           <NavLink className={({ isActive }) => (isActive ? "active" : undefined)} to="/printers">
             Printers
           </NavLink>
+          <NavLink className={({ isActive }) => (isActive ? "active" : undefined)} to="/sessions">
+            Sessions
+          </NavLink>
         </nav>
       </aside>
 
@@ -29,6 +33,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/printers" element={<PrintersPage />} />
+          <Route path="/sessions" element={<SessionsPage />} />
         </Routes>
       </main>
     </div>

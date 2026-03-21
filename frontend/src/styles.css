@@ -19,7 +19,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -75,7 +76,8 @@ textarea {
 }
 
 .panel-grid,
-.printer-layout {
+.printer-layout,
+.session-layout {
   display: grid;
   gap: 1rem;
 }
@@ -90,6 +92,11 @@ textarea {
   align-items: start;
 }
 
+.session-layout {
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  align-items: start;
+}
+
 .panel {
   padding: 1.25rem;
   border-radius: 18px;
@@ -101,7 +108,8 @@ textarea {
 .printer-card-header,
 .section-label,
 .checkbox-row,
-.card-actions {
+.card-actions,
+.sample-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -130,7 +138,8 @@ textarea {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border: 1px solid #c9d4e2;
   border-radius: 12px;
@@ -183,6 +192,7 @@ textarea {
   padding: 0.35rem 0.7rem;
   font-size: 0.85rem;
   font-weight: 700;
+  text-transform: capitalize;
 }
 
 .status-pill.active {
@@ -213,21 +223,67 @@ textarea {
   color: #7a2219;
 }
 
+.session-card {
+  border: 1px solid transparent;
+  border-radius: 16px;
+  padding: 1rem;
+  background: rgba(244, 248, 252, 0.9);
+  cursor: pointer;
+}
+
+.session-card.selected {
+  border-color: #21496f;
+  background: #eef5fb;
+}
+
+.sample-table {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.sample-table-header,
+.sample-table-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 0.7fr 0.8fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.sample-table-header {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #45566a;
+}
+
+.sample-table-row {
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(244, 248, 252, 0.9);
+}
+
 .muted {
   color: #607080;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .app-shell,
-  .printer-layout {
+  .printer-layout,
+  .session-layout {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 700px) {
   .sidebar {
     padding: 1.5rem;
   }
 
   .content {
     padding: 1.5rem;
+  }
+
+  .sample-table-header,
+  .sample-table-row {
+    grid-template-columns: 1fr;
   }
 }
