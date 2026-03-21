@@ -1,9 +1,9 @@
-﻿from fastapi import APIRouter, Depends, Query
+﻿from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import SessionStatus
-from app.schemas.thermal import SessionDispositionRequest, SessionRead, SessionStartRequest, SessionStopRequest
+from app.schemas.thermal import SessionCaptureResponse, SessionDispositionRequest, SessionRead, SessionStartRequest, SessionStopRequest, TemperatureSampleRead
 from app.services.session_lifecycle import SessionLifecycleService
 
 router = APIRouter(tags=["sessions"])
@@ -18,7 +18,7 @@ def list_sessions(
     return SessionLifecycleService(db).list_sessions(printer_id=printer_id, status_filter=status_filter)
 
 
-@router.post("/printers/{printer_id}/sessions/start", response_model=SessionRead)
+@router.post("/printers/{printer_id}/sessions/start", response_model=SessionRead, status_code=status.HTTP_201_CREATED)
 def start_session(printer_id: int, payload: SessionStartRequest, db: Session = Depends(get_db)) -> SessionRead:
     service = SessionLifecycleService(db)
     printer = service.get_printer(printer_id)
@@ -44,3 +44,17 @@ def discard_session(session_id: int, db: Session = Depends(get_db)) -> SessionRe
     service = SessionLifecycleService(db)
     session = service.get_session(session_id)
     return service.discard_session(session)
+
+
+@router.get("/sessions/{session_id}/samples", response_model=list[TemperatureSampleRead])
+def list_samples(session_id: int, db: Session = Depends(get_db)) -> list[TemperatureSampleRead]:
+    service = SessionLifecycleService(db)
+    session = service.get_session(session_id)
+    return service.list_samples(session)
+
+
+@router.post("/sessions/{session_id}/samples/capture", response_model=SessionCaptureResponse, status_code=status.HTTP_201_CREATED)
+def capture_sample(session_id: int, db: Session = Depends(get_db)) -> SessionCaptureResponse:
+    service = SessionLifecycleService(db)
+    session = service.get_session(session_id)
+    return service.capture_sample(session)

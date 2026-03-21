@@ -1,2 +1,2 @@
 ﻿from app.db.base import Base
-from app.models import PrinterProfile, RecordingSession  # noqa: F401
+from app.models import PrinterProfile, RecordingSession, TemperatureSample, ThermalEvent  # noqa: F401

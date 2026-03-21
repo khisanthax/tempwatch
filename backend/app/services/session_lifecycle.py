@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.integrations.moonraker import MoonrakerClient
-from app.models import PrinterProfile, RecordingSession, SessionStatus
+from app.models import PrinterProfile, RecordingSession, SessionStatus, TemperatureSample, ThermalEvent
 
 settings = get_settings()
 
@@ -130,6 +130,7 @@ class SessionLifecycleService:
         session.stop_reason = stop_reason
         session.status = SessionStatus.COMPLETED
         self.db.add(session)
+        self._record_event(session, event_type="session-stopped", message=f"Recording session stopped ({session.stop_reason or 'manual-stop'})")
         self.db.commit()
         self.db.refresh(session)
         return session
@@ -141,6 +142,7 @@ class SessionLifecycleService:
         session.status = SessionStatus.SAVED
         session.save_notes = save_notes
         self.db.add(session)
+        self._record_event(session, event_type="session-saved", message="Recording session saved")
         self.db.commit()
         self.db.refresh(session)
         return session
@@ -151,9 +153,32 @@ class SessionLifecycleService:
 
         session.status = SessionStatus.DISCARDED
         self.db.add(session)
+        self._record_event(session, event_type="session-discarded", message="Recording session discarded")
         self.db.commit()
         self.db.refresh(session)
         return session
+
+    def list_samples(self, session: RecordingSession) -> list[TemperatureSample]:
+        stmt: Select[tuple[TemperatureSample]] = (
+            select(TemperatureSample)
+            .where(TemperatureSample.session_id == session.id)
+            .order_by(TemperatureSample.captured_at.asc())
+        )
+        return list(self.db.scalars(stmt))
+
+    def capture_sample(self, session: RecordingSession) -> dict[str, RecordingSession | TemperatureSample]:
+        if session.status != SessionStatus.ACTIVE:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Samples can only be captured for active sessions")
+
+        printer = session.printer or self.get_printer(session.printer_id)
+        snapshot = self.moonraker.fetch_temperature_snapshot(printer)
+        sample = TemperatureSample(session_id=session.id, **snapshot)
+        self.db.add(sample)
+        self._record_event(session, event_type="sample-captured", message="Temperature snapshot captured")
+        self.db.commit()
+        self.db.refresh(sample)
+        self.db.refresh(session)
+        return {"session": session, "sample": sample}
 
     def check_printer_connection(self, printer: PrinterProfile) -> dict[str, str | int | bool | None]:
         return {
@@ -201,7 +226,12 @@ class SessionLifecycleService:
         session.stop_reason = session.stop_reason or "max-duration-enforced"
         session.status = SessionStatus.COMPLETED
         self.db.add(session)
+        self._record_event(session, event_type="session-expired", message="Recording session reached the 4-day maximum")
         return True
+
+    def _record_event(self, session: RecordingSession, *, event_type: str, message: str) -> None:
+        event = ThermalEvent(session_id=session.id, event_type=event_type, message=message)
+        self.db.add(event)
 
     @staticmethod
     def _coerce_utc(value: datetime) -> datetime:

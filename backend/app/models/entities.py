@@ -2,7 +2,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -50,3 +50,38 @@ class RecordingSession(TimestampMixin, Base):
     save_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     printer: Mapped[PrinterProfile] = relationship(back_populates="sessions")
+    samples: Mapped[list["TemperatureSample"]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    thermal_events: Mapped[list["ThermalEvent"]] = relationship(back_populates="session", cascade="all, delete-orphan")
+
+
+class TemperatureSample(TimestampMixin, Base):
+    __tablename__ = "temperature_samples"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("recording_sessions.id"), nullable=False, index=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False, index=True)
+    nozzle_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    nozzle_target: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bed_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bed_target: Mapped[float | None] = mapped_column(Float, nullable=True)
+    chamber_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heater_power: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fan_speed: Mapped[float | None] = mapped_column(Float, nullable=True)
+    print_state: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="moonraker-http", nullable=False)
+    raw_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    session: Mapped[RecordingSession] = relationship(back_populates="samples")
+
+
+class ThermalEvent(TimestampMixin, Base):
+    __tablename__ = "thermal_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("recording_sessions.id"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False, index=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    session: Mapped[RecordingSession] = relationship(back_populates="thermal_events")

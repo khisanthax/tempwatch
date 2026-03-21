@@ -67,3 +67,28 @@ class SessionRead(BaseModel):
     save_notes: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class TemperatureSampleRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    session_id: int
+    captured_at: datetime
+    nozzle_actual: float | None
+    nozzle_target: float | None
+    bed_actual: float | None
+    bed_target: float | None
+    chamber_actual: float | None
+    heater_power: float | None
+    fan_speed: float | None
+    print_state: str | None
+    source: str
+    raw_payload: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SessionCaptureResponse(BaseModel):
+    session: SessionRead
+    sample: TemperatureSampleRead
