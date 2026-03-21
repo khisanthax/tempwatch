@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: light;
   font-family: "Segoe UI", sans-serif;
   line-height: 1.5;
@@ -286,4 +286,99 @@ select {
   .sample-table-row {
     grid-template-columns: 1fr;
   }
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.metric-card {
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: rgba(244, 248, 252, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.metric-label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #607080;
+}
+
+.chart-card {
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(244, 248, 252, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chart-empty {
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(244, 248, 252, 0.9);
+}
+
+.temperature-chart {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-grid {
+  stroke: rgba(96, 112, 128, 0.15);
+  stroke-width: 1;
+}
+
+.chart-line {
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-line.nozzle {
+  stroke: #cf4f3f;
+}
+
+.chart-line.bed {
+  stroke: #2c78c4;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-swatch.nozzle {
+  background: #cf4f3f;
+}
+
+.legend-swatch.bed {
+  background: #2c78c4;
+}
+
+.chart-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
 }
