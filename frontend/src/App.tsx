@@ -1,4 +1,4 @@
-﻿import { Link, Route, Routes } from "react-router-dom";
+import { NavLink, Route, Routes } from "react-router-dom";
 
 import { DashboardPage } from "./pages/DashboardPage";
 import { PrintersPage } from "./pages/PrintersPage";
@@ -16,8 +16,12 @@ export function App() {
         </div>
 
         <nav>
-          <Link to="/">Overview</Link>
-          <Link to="/printers">Printers</Link>
+          <NavLink className={({ isActive }) => (isActive ? "active" : undefined)} to="/" end>
+            Overview
+          </NavLink>
+          <NavLink className={({ isActive }) => (isActive ? "active" : undefined)} to="/printers">
+            Printers
+          </NavLink>
         </nav>
       </aside>
 

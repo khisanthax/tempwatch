@@ -17,6 +17,12 @@ body {
   min-height: 100vh;
 }
 
+button,
+input,
+textarea {
+  font: inherit;
+}
+
 #root {
   min-height: 100vh;
 }
@@ -49,6 +55,10 @@ body {
   font-weight: 600;
 }
 
+.sidebar a.active {
+  color: #ffffff;
+}
+
 .content {
   padding: 2rem;
 }
@@ -64,11 +74,20 @@ body {
   max-width: 34rem;
 }
 
-.panel-grid {
+.panel-grid,
+.printer-layout {
   display: grid;
   gap: 1rem;
+}
+
+.panel-grid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   margin-top: 1.5rem;
+}
+
+.printer-layout {
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  align-items: start;
 }
 
 .panel {
@@ -78,8 +97,110 @@ body {
   box-shadow: 0 14px 34px rgba(31, 45, 61, 0.08);
 }
 
+.page-header,
+.printer-card-header,
+.section-label,
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.stack-lg,
+.stack-md,
+.stack-sm,
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.stack-lg {
+  gap: 1.5rem;
+}
+
+.stack-md {
+  gap: 1rem;
+}
+
+.stack-sm,
+.field {
+  gap: 0.5rem;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border: 1px solid #c9d4e2;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  background: #fbfdff;
+}
+
+.checkbox-row {
+  justify-content: flex-start;
+}
+
+.primary-button,
+.ghost-button {
+  border-radius: 999px;
+  border: none;
+  padding: 0.75rem 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-button {
+  background: #21496f;
+  color: #fff;
+}
+
+.ghost-button {
+  background: rgba(33, 73, 111, 0.1);
+  color: #21496f;
+}
+
+.primary-button:disabled,
+.ghost-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.alert {
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: #ffe7e5;
+  color: #7a2219;
+}
+
+.empty-state {
+  color: #4d5f74;
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.status-pill.active {
+  background: #e2f4e8;
+  color: #1a6b37;
+}
+
+.status-pill.inactive {
+  background: #eceff4;
+  color: #576475;
+}
+
+.muted {
+  color: #607080;
+}
+
 @media (max-width: 900px) {
-  .app-shell {
+  .app-shell,
+  .printer-layout {
     grid-template-columns: 1fr;
   }
 

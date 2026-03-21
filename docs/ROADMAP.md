@@ -105,12 +105,12 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Current Status
 
-- Repository initialized on `main` from an empty directory on 2026-03-21.
-- Backend FastAPI app is running from `backend/app` with config, SQLAlchemy setup, and automatic table creation.
-- Frontend React app is scaffolded under `frontend/` with routing and a usable application shell.
+- Repository is initialized on `main` and pushed to GitHub.
+- Backend FastAPI app runs from `backend/app` with config, SQLAlchemy setup, and automatic table creation.
+- Frontend React app is scaffolded under `frontend/` with routing and a working printer management screen.
 - Printer profile CRUD endpoints and session lifecycle endpoints exist.
 - Session states currently support `active`, `completed`, `saved`, and `discarded`.
-- Frontend does not yet call the backend; printer management UI is still a shell page.
+- Frontend can fetch and create printer profiles against the local backend.
 - Moonraker integration has not started yet.
 
 ## Decision Log / Technical Notes
@@ -124,6 +124,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - SQLite schema creation currently uses SQLAlchemy metadata on app startup; migrations can be added once schemas stabilize.
 - Frontend JSON/TOML-related config files were rewritten without a BOM after build/install validation exposed parsing issues.
 - Local backend validation is using the system Python installation because the generated `.venv` did not include a working `pip` in this environment.
+- Generated install/build artifacts are now excluded from version control; the first commit included some generated files, and this follow-up chunk removes them.
 
 ## Known Risks / Open Questions
 
@@ -132,18 +133,20 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Long-running local recording sessions need resilient reconnect behavior without creating duplicate samples.
 - Session retention rules for unsaved completed sessions still need a product decision.
 - Printer profile uniqueness currently relies on the database constraint; API-level conflict handling should be tightened.
+- Frontend printer management currently supports create/list only; edit/delete and connectivity testing are still pending.
 
 ## What Changed From The Original Plan
 
 - The first implementation chunk combined scaffolding and the first backend domain slice instead of stopping after directory setup.
 - SQLite bootstrap was implemented immediately because printer/session APIs depend on real persistence.
-- Frontend printer management was deferred to the next chunk so backend contracts could stabilize first.
+- Frontend printer management landed before Moonraker work so local profile handling could be exercised end to end.
+- Repository hygiene cleanup became its own follow-up task after validation generated files that should not remain tracked.
 
 ## Next Steps
 
-1. Add frontend API integration and printer profile management UI.
-2. Tighten backend validation, including uniqueness errors and hard 4-day cap enforcement for stale active sessions.
-3. Introduce a Moonraker client abstraction and connection diagnostics endpoint.
+1. Tighten backend validation, including uniqueness errors and hard 4-day cap enforcement for stale active sessions.
+2. Introduce a Moonraker client abstraction and connection diagnostics endpoint.
+3. Extend the frontend with printer edit/delete actions and basic connection feedback.
 4. Start temperature sample/event persistence once live collection contracts are in place.
 
 ## Recent Completed Work Log
@@ -152,9 +155,10 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - 2026-03-21: Initialized the repository, added setup docs, and scaffolded backend/frontend structure.
 - 2026-03-21: Implemented SQLite-backed printer profile CRUD and session lifecycle endpoints.
 - 2026-03-21: Verified backend imports/database initialization and produced a successful frontend production build.
+- 2026-03-21: Wired the frontend printers page to the backend and removed generated artifacts from version control.
 
 ## Upcoming Commit Targets
 
 - Commit 1: Foundation scaffold, setup docs, backend persistence baseline, printer/session API foundation.
-- Commit 2: Frontend printer management wired to the backend.
+- Commit 2: Frontend printer management wired to the backend plus generated-file cleanup.
 - Commit 3: Moonraker client abstraction and active-session cap enforcement improvements.

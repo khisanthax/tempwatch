@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.py[cod]
 *.sqlite3
 *.db
@@ -9,3 +9,7 @@ dist/
 coverage/
 .vscode/
 .DS_Store
+*.egg-info/
+*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
