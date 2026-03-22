@@ -32,6 +32,7 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - Fixed 2-second polling interval
 - Rolling retention window of `4h`, `8h`, `12h`, or `24h`
 - Stores watch samples separately from manual session samples so passive history stays distinct from intentional recordings
+- Retention is timestamp-based, not row-count based, and stale watch rows are pruned continuously by the backend loop
 - Current rolling watch windows can be promoted into a saved manual session from the Watch page
 
 ## Features In Place
@@ -41,6 +42,7 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - Automatic 4-day max session enforcement
 - Persistent temperature samples and lifecycle thermal events for manual sessions
 - Background watch configuration, rolling watch-sample persistence, and automatic pruning of samples older than the selected retention window
+- Backend retention verification coverage for separate watch storage, timestamp-based pruning, retention-window changes, and restart-safe polling
 - Background polling for active sessions and enabled watch-mode printers while the backend is running
 - Live session detail view with inline SVG graph and event markers
 - Dedicated watch-history view with recent rolling samples, auto-refresh, and watch-window promotion into saved sessions
@@ -161,6 +163,7 @@ docker compose down -v
 - Non-Docker local runs store SQLite data at `./tempwatch.db` by default, relative to the repo root when you launch `uvicorn` from this workspace.
 - Docker Compose stores SQLite data in the named Docker volume `tempwatch_data` at `/data/tempwatch.db` inside the backend container.
 - Manual sessions and background watch history use separate tables so passive rolling capture does not blur the manual diagnostic session model.
+- SQLite may not shrink the physical database file immediately after pruning, but deleted watch rows are reclaimed for reuse so retained watch data stays bounded by the configured window.
 
 ## Configuration
 
@@ -180,6 +183,7 @@ Common settings:
 
 ```powershell
 python -m compileall backend/app
+cd backend; python -m unittest tests.test_background_watch_retention
 cd frontend; npm run build
 docker compose config
 ```
@@ -191,6 +195,7 @@ In this workspace, `docker` is not installed, so the Compose files were authored
 - Moonraker sampling currently uses HTTP object queries rather than websocket streaming.
 - Printer-side fault and state events are limited to what TempWatch already persists from the manual-session lifecycle.
 - Background Watch currently stores rolling thermal snapshots, but it does not yet persist a separate printer-event timeline beyond the sample payload fields.
+- Background Watch resumes after backend restart without duplicating samples inside the 2-second polling interval, but it does not backfill samples that would have been captured while the backend was offline.
 - Saved-session comparison currently focuses on nozzle and bed overlays using the existing inline SVG graphing path.
 - Compose runtime validation still needs to be completed on a machine with Docker installed.
 - Moonraker host-timezone detection is not implemented yet; the deployment currently uses the documented Eastern Time fallback for display.

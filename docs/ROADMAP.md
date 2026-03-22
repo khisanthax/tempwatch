@@ -60,9 +60,9 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Priority Order
 
-### Current Completed Slice: Background Watch Mode
+### Current Completed Slice: Background Watch Retention Verification
 
-This slice is implemented and now becomes part of the product baseline.
+Background Watch retention is now verified: watch rows stay separate from manual-session rows, timestamp-based pruning runs continuously from the backend loop, retention-window changes prune existing rows, and restart-safe polling avoids duplicate watch samples.
 
 1. Separate per-printer background watch configuration with enable/disable state and rolling retention windows of `4h`, `8h`, `12h`, or `24h`.
 2. Separate rolling watch-sample storage so manual sessions and passive watch history remain distinct concepts.
@@ -75,7 +75,7 @@ This slice is implemented and now becomes part of the product baseline.
 ### Next Priority Slice
 
 1. Validate Docker and Portainer runtime behavior end to end on a host with Docker installed, including persistence across redeploys.
-2. Add reliability hardening around background polling failures, Moonraker outages, and stale watch configurations.
+2. Add reliability hardening around Moonraker outages, watch-mode status reporting, and cleanup observability.
 3. Only after that, return to Moonraker websocket ingestion.
 4. Then begin first diagnostic helpers.
 
@@ -152,7 +152,7 @@ This slice is implemented and now becomes part of the product baseline.
 - [x] Frontend timezone rendering implemented.
 - [x] Docker persistence hardening for Portainer redeploys implemented.
 - [x] Sample table visible row limit control implemented.
-- [x] Background watch mode implemented.
+- [x] Background watch mode fully verified and complete.
 - [ ] Docker runtime redeploy validation completed on a real host.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
@@ -166,7 +166,9 @@ This slice is implemented and now becomes part of the product baseline.
 - Session states support `active`, `completed`, `saved`, and `discarded`.
 - TempWatch supports multiple active manual sessions across different printers, but still limits each printer to one active manual session and keeps the UI centered on one selected session at a time.
 - Background Watch is optional per printer, uses fixed 2-second polling, and stores rolling watch samples separately from manual sessions.
-- Watch history is pruned continuously to the selected 4 / 8 / 12 / 24 hour retention window.
+- Watch history pruning is verified: stale rows are deleted by timestamp for all configured printers every backend loop cycle, even when no new watch sample is captured.
+- Retention-window changes prune existing watch rows immediately, and restart-safe polling avoids duplicate watch samples inside the configured 2-second interval.
+- Backend restart resumes watch mode from persisted configuration, but TempWatch does not backfill samples that were missed while the backend process was offline.
 - The Watch page can inspect recent rolling history for a selected printer, auto-refresh retained samples, and promote the current watch window into a saved manual session.
 - Completed manual sessions can be saved with notes or discarded from the session detail flow.
 - Saved sessions can be filtered by printer, reviewed with notes/sample counts, and compared two-at-a-time with elapsed or absolute alignment.
@@ -203,6 +205,8 @@ This slice is implemented and now becomes part of the product baseline.
 - TempWatch currently uses a deterministic `America/New_York` display timezone in the frontend because Moonraker-host timezone discovery is not implemented yet.
 - Portainer redeploy testing showed stack-scoped volume naming was not reliable enough, so the Docker volume name is now pinned explicitly for redeploy stability.
 - Background Watch window promotion creates a saved manual session copy instead of mutating watch data so rolling history stays disposable and the promoted diagnostic artifact becomes a normal saved session.
+- Background Watch pruning now runs independently of successful sample capture so disabled printers, transient Moonraker failures, and loop restarts do not allow stale watch rows to accumulate indefinitely.
+- SQLite row retention is bounded by the watch window, but the physical database file may not shrink on every prune because SQLite reuses freed pages.
 
 ## Known Risks / Open Questions
 
@@ -213,6 +217,7 @@ This slice is implemented and now becomes part of the product baseline.
 - Existing Docker-backed data created before the persistence hardening change may live in an old stack-scoped volume and may not carry over automatically once the persistence target is changed.
 - Existing SQLite files created before future schema changes will eventually need a migration path.
 - Background Watch currently stores rolling samples but not a separate persisted event timeline beyond the sample payload fields.
+- Missed watch samples during backend downtime are not backfilled; only duplicate-safe resume behavior is currently implemented.
 
 ## What Changed From The Original Plan
 
@@ -231,7 +236,7 @@ This slice is implemented and now becomes part of the product baseline.
 ## Next Steps
 
 1. Validate Docker and Portainer runtime behavior on a real host, including persistent data across redeploys and live frontend refresh behavior.
-2. Add resilience around background polling failures, Moonraker outages, and watch-mode status reporting.
+2. Add resilience around Moonraker outages, watch-mode status reporting, and cleanup observability.
 3. Decide whether watch-mode promotion should allow selecting a smaller sub-window than the full retention window.
 4. Only after that, return to websocket ingestion and the first diagnostic helpers.
 
@@ -258,6 +263,8 @@ This slice is implemented and now becomes part of the product baseline.
 - 2026-03-22: Re-prioritized the roadmap around a separate Background Watch Mode slice that keeps passive rolling watch history distinct from manual sessions.
 - 2026-03-22: Added the backend Background Watch Mode foundation with separate watch tables, rolling poll/prune behavior, and promotion APIs.
 - 2026-03-22: Added the first watch-mode frontend slice with per-printer watch controls, a dedicated watch history page, rolling history auto-refresh, and documentation updates.
+- 2026-03-22: Re-opened the watch-mode slice to verify and harden rolling retention before marking the feature complete.
+- 2026-03-22: Verified Background Watch retention with backend tests and loop-level cleanup so stale watch rows are pruned continuously without contaminating manual-session storage.
 
 ## Upcoming Commit Targets
 

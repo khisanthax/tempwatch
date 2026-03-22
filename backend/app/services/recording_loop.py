@@ -36,6 +36,14 @@ class RecordingLoop:
                     db.rollback()
 
             watch_service = BackgroundWatchService(db)
+            try:
+                pruned_count = watch_service.prune_all_watch_history(commit=True)
+                if pruned_count > 0:
+                    logger.debug("Pruned %s stale watch samples", pruned_count)
+            except Exception:
+                logger.exception("Failed to prune stale watch samples")
+                db.rollback()
+
             for config in watch_service.list_enabled_watch_configs():
                 try:
                     captured = watch_service.capture_watch_sample_if_due(config)

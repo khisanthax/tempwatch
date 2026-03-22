@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.integrations.moonraker import MoonrakerClient
 from app.models import BackgroundWatchConfig, BackgroundWatchSample, PrinterProfile, RecordingSession, SessionStatus, TemperatureSample, ThermalEvent
-from app.services.session_lifecycle import DEFAULT_WATCH_RETENTION_HOURS, SessionLifecycleService
+from app.services.session_lifecycle import DEFAULT_WATCH_RETENTION_HOURS
 
 settings = get_settings()
 VALID_RETENTION_HOURS = {4, 8, 12, 24}
@@ -75,6 +75,10 @@ class BackgroundWatchService:
         )
         return list(self.db.scalars(stmt))
 
+    def list_watch_configs(self) -> list[BackgroundWatchConfig]:
+        stmt: Select[tuple[BackgroundWatchConfig]] = select(BackgroundWatchConfig).order_by(BackgroundWatchConfig.printer_id.asc())
+        return list(self.db.scalars(stmt))
+
     def list_enabled_watch_configs(self) -> list[BackgroundWatchConfig]:
         stmt: Select[tuple[BackgroundWatchConfig]] = (
             select(BackgroundWatchConfig)
@@ -83,35 +87,62 @@ class BackgroundWatchService:
         )
         return list(self.db.scalars(stmt))
 
-    def capture_watch_sample_if_due(self, config: BackgroundWatchConfig) -> BackgroundWatchSample | None:
+    def capture_watch_sample_if_due(
+        self,
+        config: BackgroundWatchConfig,
+        *,
+        reference_time: datetime | None = None,
+    ) -> BackgroundWatchSample | None:
+        now = self._coerce_utc(reference_time or datetime.now(UTC))
         printer = config.printer or self.db.get(PrinterProfile, config.printer_id)
+        self.prune_watch_history(config, reference_time=now)
+
         if printer is None or not config.is_enabled or not printer.is_enabled:
             return None
 
         last_sample = self._get_latest_watch_sample(printer.id)
         if last_sample is not None:
-            elapsed = datetime.now(UTC) - self._coerce_utc(last_sample.captured_at)
+            elapsed = now - self._coerce_utc(last_sample.captured_at)
             if elapsed.total_seconds() < settings.watch_poll_interval_seconds:
-                self.prune_watch_history(config)
                 return None
 
         snapshot = self.moonraker.fetch_temperature_snapshot(printer)
         snapshot["source"] = "moonraker-http-watch"
         sample = BackgroundWatchSample(printer_id=printer.id, **snapshot)
         self.db.add(sample)
-        self.prune_watch_history(config)
+        self.prune_watch_history(config, reference_time=now)
         self.db.commit()
         self.db.refresh(sample)
         return sample
 
-    def prune_watch_history(self, config: BackgroundWatchConfig) -> None:
-        cutoff = datetime.now(UTC) - timedelta(hours=config.retention_hours)
-        self.db.execute(
-            delete(BackgroundWatchSample).where(
+    def prune_watch_history(
+        self,
+        config: BackgroundWatchConfig,
+        *,
+        reference_time: datetime | None = None,
+    ) -> int:
+        now = self._coerce_utc(reference_time or datetime.now(UTC))
+        cutoff = now - timedelta(hours=config.retention_hours)
+        result = self.db.execute(
+            delete(BackgroundWatchSample)
+            .where(
                 BackgroundWatchSample.printer_id == config.printer_id,
                 BackgroundWatchSample.captured_at < cutoff,
             )
+            .execution_options(synchronize_session=False)
         )
+        return int(result.rowcount or 0)
+
+    def prune_all_watch_history(self, *, reference_time: datetime | None = None, commit: bool = False) -> int:
+        deleted_count = 0
+        now = self._coerce_utc(reference_time or datetime.now(UTC))
+        for config in self.list_watch_configs():
+            deleted_count += self.prune_watch_history(config, reference_time=now)
+
+        if commit:
+            self.db.commit()
+
+        return deleted_count
 
     def promote_watch_window(
         self,
