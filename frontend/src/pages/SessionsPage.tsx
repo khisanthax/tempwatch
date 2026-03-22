@@ -1,20 +1,21 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
-import { captureSample, fetchPrinters, fetchSamples, fetchSessions, startSession, stopSession } from "../lib/api";
-import type { PrinterProfile, SessionRecord, TemperatureSample } from "../types/thermal";
+import { TemperatureChart } from "../components/TemperatureChart";
+import { captureSample, discardSession, fetchPrinters, fetchSamples, fetchSessionEvents, fetchSessions, saveSession, startSession, stopSession } from "../lib/api";
+import type { PrinterProfile, SessionRecord, TemperatureSample, ThermalEvent } from "../types/thermal";
 
 const ACTIVE_REFRESH_MS = 2000;
 const CLOCK_REFRESH_MS = 1000;
-const CHART_WIDTH = 720;
-const CHART_HEIGHT = 240;
 
 export function SessionsPage() {
   const [printers, setPrinters] = useState<PrinterProfile[]>([]);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [samples, setSamples] = useState<TemperatureSample[]>([]);
+  const [events, setEvents] = useState<ThermalEvent[]>([]);
   const [selectedPrinterId, setSelectedPrinterId] = useState<number | "">("");
   const [sessionLabel, setSessionLabel] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [saveNotes, setSaveNotes] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionSessionId, setActionSessionId] = useState<number | null>(null);
@@ -28,10 +29,12 @@ export function SessionsPage() {
   useEffect(() => {
     if (selectedSessionId === null) {
       setSamples([]);
+      setEvents([]);
+      setSaveNotes("");
       return;
     }
 
-    void loadSamples(selectedSessionId);
+    void loadSessionData(selectedSessionId);
   }, [selectedSessionId]);
 
   const enabledPrinters = printers.filter((printer) => printer.is_enabled);
@@ -85,20 +88,24 @@ export function SessionsPage() {
     }
   }
 
-  async function loadSamples(sessionId: number) {
+  async function loadSessionData(sessionId: number) {
     try {
-      const sampleData = await fetchSamples(sessionId);
+      const [sampleData, eventData] = await Promise.all([fetchSamples(sessionId), fetchSessionEvents(sessionId)]);
       setSamples(sampleData);
-    } catch (sampleError) {
-      setError(sampleError instanceof Error ? sampleError.message : "Failed to load samples");
+      setEvents(eventData);
+      const currentSession = sessions.find((session) => session.id === sessionId);
+      setSaveNotes(currentSession?.save_notes ?? "");
+    } catch (sessionError) {
+      setError(sessionError instanceof Error ? sessionError.message : "Failed to load session detail");
     }
   }
 
   async function refreshActiveSession(sessionId: number) {
     try {
-      const [sessionData, sampleData] = await Promise.all([fetchSessions(), fetchSamples(sessionId)]);
+      const [sessionData, sampleData, eventData] = await Promise.all([fetchSessions(), fetchSamples(sessionId), fetchSessionEvents(sessionId)]);
       setSessions(sessionData);
       setSamples(sampleData);
+      setEvents(eventData);
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Failed to refresh active session");
     }
@@ -119,7 +126,8 @@ export function SessionsPage() {
       setSessions((current) => [session, ...current].sort((left, right) => right.started_at.localeCompare(left.started_at)));
       setSelectedSessionId(session.id);
       setSessionLabel("");
-      await loadSamples(session.id);
+      setSaveNotes("");
+      await loadSessionData(session.id);
       setNow(Date.now());
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to start session");
@@ -156,10 +164,42 @@ export function SessionsPage() {
       const session = await stopSession(sessionId, "manual-stop");
       setSessions((current) => current.map((item) => (item.id === session.id ? session : item)));
       if (selectedSessionId === sessionId) {
-        await loadSamples(sessionId);
+        setSaveNotes(session.save_notes ?? "");
+        await loadSessionData(sessionId);
       }
     } catch (stopError) {
       setError(stopError instanceof Error ? stopError.message : "Failed to stop session");
+    } finally {
+      setActionSessionId(null);
+    }
+  }
+
+  async function handleSaveSession(sessionId: number) {
+    setActionSessionId(sessionId);
+    setError(null);
+
+    try {
+      const session = await saveSession(sessionId, saveNotes.trim());
+      setSessions((current) => current.map((item) => (item.id === session.id ? session : item)));
+      setSaveNotes(session.save_notes ?? "");
+      await loadSessionData(sessionId);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save session");
+    } finally {
+      setActionSessionId(null);
+    }
+  }
+
+  async function handleDiscardSession(sessionId: number) {
+    setActionSessionId(sessionId);
+    setError(null);
+
+    try {
+      const session = await discardSession(sessionId);
+      setSessions((current) => current.map((item) => (item.id === session.id ? session : item)));
+      await loadSessionData(sessionId);
+    } catch (discardError) {
+      setError(discardError instanceof Error ? discardError.message : "Failed to discard session");
     } finally {
       setActionSessionId(null);
     }
@@ -240,6 +280,7 @@ export function SessionsPage() {
                       <span className={`status-pill ${session.status === "active" ? "active" : "inactive"}`}>{session.status}</span>
                     </div>
                     <p className="muted">Started: {new Date(session.started_at).toLocaleString()}</p>
+                    <p className="muted">Samples: {session.sample_count}</p>
                     <div className="card-actions">
                       {session.status === "active" ? (
                         <>
@@ -314,7 +355,40 @@ export function SessionsPage() {
 
                 {selectedSession.status === "active" ? <p className="muted">Active sessions auto-refresh every 2 seconds while this page is open.</p> : null}
 
-                <TemperatureChart samples={samples} />
+                {selectedSession.status === "completed" ? (
+                  <div className="panel inset-panel stack-md">
+                    <div>
+                      <h3>Finalize session</h3>
+                      <p className="muted">Completed sessions should be saved for later comparison or discarded when they are not useful.</p>
+                    </div>
+                    <label className="field">
+                      <span>Save notes</span>
+                      <textarea
+                        rows={3}
+                        value={saveNotes}
+                        onChange={(event) => setSaveNotes(event.target.value)}
+                        placeholder="What was being tested, what fault was observed, or why this run matters"
+                      />
+                    </label>
+                    <div className="card-actions">
+                      <button className="primary-button" type="button" onClick={() => void handleSaveSession(selectedSession.id)} disabled={actionSessionId === selectedSession.id}>
+                        {actionSessionId === selectedSession.id ? "Working..." : "Save session"}
+                      </button>
+                      <button className="ghost-button" type="button" onClick={() => void handleDiscardSession(selectedSession.id)} disabled={actionSessionId === selectedSession.id}>
+                        Discard session
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <TemperatureChart
+                  primary={{
+                    label: selectedSession.label || "Selected session",
+                    colorClass: "primary",
+                    samples,
+                    events,
+                  }}
+                />
 
                 {samples.length === 0 ? <p className="muted">No samples captured yet for this session.</p> : null}
 
@@ -345,74 +419,6 @@ export function SessionsPage() {
       </div>
     </section>
   );
-}
-
-function TemperatureChart({ samples }: { samples: TemperatureSample[] }) {
-  const chartData = useMemo(() => buildChartData(samples), [samples]);
-
-  if (chartData === null) {
-    return <div className="chart-empty muted">Capture at least two samples to render the temperature graph.</div>;
-  }
-
-  return (
-    <div className="chart-card">
-      <div className="section-label">
-        <h3>Temperature trace</h3>
-        <div className="chart-legend">
-          <span><i className="legend-swatch nozzle" />Nozzle</span>
-          <span><i className="legend-swatch bed" />Bed</span>
-        </div>
-      </div>
-      <svg className="temperature-chart" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} role="img" aria-label="Session temperature graph">
-        {chartData.gridLines.map((line) => (
-          <line key={line.y} x1="0" y1={line.y} x2={CHART_WIDTH} y2={line.y} className="chart-grid" />
-        ))}
-        <polyline className="chart-line nozzle" fill="none" points={chartData.nozzlePoints} />
-        <polyline className="chart-line bed" fill="none" points={chartData.bedPoints} />
-      </svg>
-      <div className="chart-scale muted">
-        <span>{chartData.minLabel}</span>
-        <span>{chartData.maxLabel}</span>
-      </div>
-    </div>
-  );
-}
-
-function buildChartData(samples: TemperatureSample[]) {
-  const plotted = samples.filter((sample) => sample.nozzle_actual !== null || sample.bed_actual !== null);
-  if (plotted.length < 2) {
-    return null;
-  }
-
-  const timestamps = plotted.map((sample) => new Date(sample.captured_at).getTime());
-  const values = plotted.flatMap((sample) => [sample.nozzle_actual, sample.bed_actual].filter((value): value is number => value !== null));
-  const minTime = Math.min(...timestamps);
-  const maxTime = Math.max(...timestamps);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const paddedMin = Math.max(0, Math.floor(minValue - 5));
-  const paddedMax = Math.ceil(maxValue + 5);
-  const valueRange = Math.max(1, paddedMax - paddedMin);
-  const timeRange = Math.max(1, maxTime - minTime);
-
-  function toPoint(timestamp: number, value: number | null) {
-    const x = ((timestamp - minTime) / timeRange) * CHART_WIDTH;
-    const yValue = value ?? paddedMin;
-    const y = CHART_HEIGHT - ((yValue - paddedMin) / valueRange) * CHART_HEIGHT;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }
-
-  const nozzlePoints = plotted.map((sample) => toPoint(new Date(sample.captured_at).getTime(), sample.nozzle_actual)).join(" ");
-  const bedPoints = plotted.map((sample) => toPoint(new Date(sample.captured_at).getTime(), sample.bed_actual)).join(" ");
-  const gridLines = Array.from({ length: 5 }, (_, index) => ({ y: (CHART_HEIGHT / 4) * index }));
-
-  return {
-    nozzlePoints,
-    bedPoints,
-    gridLines,
-    minLabel: `${paddedMin}C`,
-    maxLabel: `${paddedMax}C`,
-  };
 }
 
 function formatTemperature(actual: number | null, target: number | null): string {

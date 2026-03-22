@@ -1,4 +1,4 @@
-﻿export interface PrinterProfile {
+export interface PrinterProfile {
   id: number;
   name: string;
   base_url: string;
@@ -27,6 +27,7 @@ export interface PrinterConnectionCheck {
 }
 
 export type SessionStatus = "active" | "completed" | "saved" | "discarded";
+export type ComparisonAlignment = "elapsed" | "absolute";
 
 export interface SessionRecord {
   id: number;
@@ -37,6 +38,7 @@ export interface SessionRecord {
   status: SessionStatus;
   stop_reason: string | null;
   save_notes: string | null;
+  sample_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +57,17 @@ export interface TemperatureSample {
   print_state: string | null;
   source: string;
   raw_payload: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThermalEvent {
+  id: number;
+  session_id: number;
+  event_type: string;
+  message: string;
+  event_time: string;
+  metadata_json: string | null;
   created_at: string;
   updated_at: string;
 }

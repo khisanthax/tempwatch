@@ -382,3 +382,75 @@ select {
   justify-content: space-between;
   font-size: 0.85rem;
 }
+.inset-panel {
+  box-shadow: none;
+  background: rgba(244, 248, 252, 0.9);
+}
+
+.field-inline {
+  max-width: 320px;
+}
+
+.saved-session-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.comparison-controls {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.chart-legend-wrap {
+  flex-wrap: wrap;
+}
+
+.chart-line.secondary {
+  stroke: #9b5dd6;
+}
+
+.chart-line.secondary-dashed {
+  stroke: #9b5dd6;
+  stroke-dasharray: 8 6;
+  stroke-width: 2;
+}
+
+.chart-marker {
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.chart-marker.primary {
+  stroke: rgba(207, 79, 63, 0.55);
+}
+
+.chart-marker.secondary {
+  stroke: rgba(155, 93, 214, 0.45);
+}
+
+.legend-swatch.secondary {
+  background: #9b5dd6;
+}
+
+.marker-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.marker-label {
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.marker-label.primary {
+  background: rgba(207, 79, 63, 0.12);
+  color: #8a3023;
+}
+
+.marker-label.secondary {
+  background: rgba(155, 93, 214, 0.12);
+  color: #6a3f97;
+}

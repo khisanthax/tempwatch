@@ -1,10 +1,12 @@
-﻿import type {
+import type {
   PrinterConnectionCheck,
   PrinterCreateInput,
   PrinterProfile,
   SessionCaptureResponse,
   SessionRecord,
+  SessionStatus,
   TemperatureSample,
+  ThermalEvent,
 } from "../types/thermal";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -50,9 +52,23 @@ export async function checkPrinterConnection(printerId: number): Promise<Printer
   return readJson<PrinterConnectionCheck>(response);
 }
 
-export async function fetchSessions(): Promise<SessionRecord[]> {
-  const response = await fetch(`${apiBaseUrl}/sessions`);
+export async function fetchSessions(options?: { printerId?: number; status?: SessionStatus }): Promise<SessionRecord[]> {
+  const params = new URLSearchParams();
+  if (options?.printerId !== undefined) {
+    params.set("printer_id", String(options.printerId));
+  }
+  if (options?.status !== undefined) {
+    params.set("status", options.status);
+  }
+
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const response = await fetch(`${apiBaseUrl}/sessions${suffix}`);
   return readJson<SessionRecord[]>(response);
+}
+
+export async function fetchSession(sessionId: number): Promise<SessionRecord> {
+  const response = await fetch(`${apiBaseUrl}/sessions/${sessionId}`);
+  return readJson<SessionRecord>(response);
 }
 
 export async function startSession(printerId: number, label: string): Promise<SessionRecord> {
@@ -79,9 +95,34 @@ export async function stopSession(sessionId: number, stopReason?: string): Promi
   return readJson<SessionRecord>(response);
 }
 
+export async function saveSession(sessionId: number, saveNotes?: string): Promise<SessionRecord> {
+  const response = await fetch(`${apiBaseUrl}/sessions/${sessionId}/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ save_notes: saveNotes || null }),
+  });
+
+  return readJson<SessionRecord>(response);
+}
+
+export async function discardSession(sessionId: number): Promise<SessionRecord> {
+  const response = await fetch(`${apiBaseUrl}/sessions/${sessionId}/discard`, {
+    method: "POST",
+  });
+
+  return readJson<SessionRecord>(response);
+}
+
 export async function fetchSamples(sessionId: number): Promise<TemperatureSample[]> {
   const response = await fetch(`${apiBaseUrl}/sessions/${sessionId}/samples`);
   return readJson<TemperatureSample[]>(response);
+}
+
+export async function fetchSessionEvents(sessionId: number): Promise<ThermalEvent[]> {
+  const response = await fetch(`${apiBaseUrl}/sessions/${sessionId}/events`);
+  return readJson<ThermalEvent[]>(response);
 }
 
 export async function captureSample(sessionId: number): Promise<SessionCaptureResponse> {
