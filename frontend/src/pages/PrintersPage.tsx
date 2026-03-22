@@ -1,7 +1,19 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { checkPrinterConnection, createPrinter, deletePrinter, fetchPrinters, updatePrinter } from "../lib/api";
-import type { PrinterConnectionCheck, PrinterCreateInput, PrinterProfile } from "../types/thermal";
+import {
+  checkPrinterConnection,
+  createPrinter,
+  deletePrinter,
+  fetchPrinters,
+  updateBackgroundWatchConfig,
+  updatePrinter,
+} from "../lib/api";
+import type {
+  PrinterConnectionCheck,
+  PrinterCreateInput,
+  PrinterProfile,
+  WatchRetentionHours,
+} from "../types/thermal";
 
 const initialForm: PrinterCreateInput = {
   name: "",
@@ -11,8 +23,22 @@ const initialForm: PrinterCreateInput = {
   is_enabled: true,
 };
 
+const WATCH_RETENTION_OPTIONS: WatchRetentionHours[] = [4, 8, 12, 24];
+
 function sortPrinters(printers: PrinterProfile[]): PrinterProfile[] {
   return [...printers].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function buildWatchDrafts(printers: PrinterProfile[]): Record<number, { is_enabled: boolean; retention_hours: WatchRetentionHours }> {
+  return Object.fromEntries(
+    printers.map((printer) => [
+      printer.id,
+      {
+        is_enabled: printer.watch_config?.is_enabled ?? false,
+        retention_hours: printer.watch_config?.retention_hours ?? 4,
+      },
+    ]),
+  );
 }
 
 export function PrintersPage() {
@@ -20,7 +46,9 @@ export function PrintersPage() {
   const [form, setForm] = useState<PrinterCreateInput>(initialForm);
   const [editingPrinterId, setEditingPrinterId] = useState<number | null>(null);
   const [checks, setChecks] = useState<Record<number, PrinterConnectionCheck>>({});
+  const [watchDrafts, setWatchDrafts] = useState<Record<number, { is_enabled: boolean; retention_hours: WatchRetentionHours }>>({});
   const [isChecking, setIsChecking] = useState<Record<number, boolean>>({});
+  const [isSavingWatch, setIsSavingWatch] = useState<Record<number, boolean>>({});
   const [deletingPrinterId, setDeletingPrinterId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,7 +69,9 @@ export function PrintersPage() {
 
     try {
       const data = await fetchPrinters();
-      setPrinters(sortPrinters(data));
+      const sorted = sortPrinters(data);
+      setPrinters(sorted);
+      setWatchDrafts(buildWatchDrafts(sorted));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load printers");
     } finally {
@@ -65,14 +95,18 @@ export function PrintersPage() {
     try {
       if (editingPrinterId === null) {
         const created = await createPrinter(payload);
-        setPrinters((current) => sortPrinters([...current, created]));
+        const next = sortPrinters([...printers, created]);
+        setPrinters(next);
+        setWatchDrafts(buildWatchDrafts(next));
       } else {
         const updated = await updatePrinter(editingPrinterId, payload);
-        setPrinters((current) => sortPrinters(current.map((printer) => (printer.id === updated.id ? updated : printer))));
+        const next = sortPrinters(printers.map((printer) => (printer.id === updated.id ? updated : printer)));
+        setPrinters(next);
+        setWatchDrafts(buildWatchDrafts(next));
         setChecks((current) => {
-          const next = { ...current };
-          delete next[updated.id];
-          return next;
+          const nextChecks = { ...current };
+          delete nextChecks[updated.id];
+          return nextChecks;
         });
       }
 
@@ -107,11 +141,13 @@ export function PrintersPage() {
 
     try {
       await deletePrinter(printer.id);
-      setPrinters((current) => current.filter((candidate) => candidate.id !== printer.id));
+      const next = printers.filter((candidate) => candidate.id !== printer.id);
+      setPrinters(next);
+      setWatchDrafts(buildWatchDrafts(next));
       setChecks((current) => {
-        const next = { ...current };
-        delete next[printer.id];
-        return next;
+        const nextChecks = { ...current };
+        delete nextChecks[printer.id];
+        return nextChecks;
       });
       if (editingPrinterId === printer.id) {
         resetForm();
@@ -137,12 +173,35 @@ export function PrintersPage() {
     }
   }
 
+  async function handleSaveWatch(printer: PrinterProfile) {
+    const draft = watchDrafts[printer.id];
+    if (!draft) {
+      return;
+    }
+
+    setIsSavingWatch((current) => ({ ...current, [printer.id]: true }));
+    setError(null);
+
+    try {
+      const watchConfig = await updateBackgroundWatchConfig(printer.id, draft);
+      const next = sortPrinters(
+        printers.map((candidate) => (candidate.id === printer.id ? { ...candidate, watch_config: watchConfig } : candidate)),
+      );
+      setPrinters(next);
+      setWatchDrafts(buildWatchDrafts(next));
+    } catch (watchError) {
+      setError(watchError instanceof Error ? watchError.message : "Failed to update watch settings");
+    } finally {
+      setIsSavingWatch((current) => ({ ...current, [printer.id]: false }));
+    }
+  }
+
   return (
     <section className="stack-lg">
       <header className="page-header">
         <div>
           <h2>Printers</h2>
-          <p>Save Moonraker endpoints here so manual recording sessions can target the right printer.</p>
+          <p>Save Moonraker endpoints here, then decide whether each printer should also run passive rolling Background Watch.</p>
         </div>
         <button className="ghost-button" type="button" onClick={() => void loadPrinters()} disabled={isLoading}>
           Refresh
@@ -237,6 +296,11 @@ export function PrintersPage() {
                 const check = checks[printer.id];
                 const isDeleting = deletingPrinterId === printer.id;
                 const isEditing = editingPrinterId === printer.id;
+                const isSavingWatchSettings = Boolean(isSavingWatch[printer.id]);
+                const watchDraft = watchDrafts[printer.id] ?? {
+                  is_enabled: printer.watch_config?.is_enabled ?? false,
+                  retention_hours: printer.watch_config?.retention_hours ?? 4,
+                };
                 return (
                   <article className="panel stack-sm" key={printer.id}>
                     <div className="printer-card-header">
@@ -250,6 +314,54 @@ export function PrintersPage() {
                     </div>
 
                     {printer.notes ? <p>{printer.notes}</p> : <p className="muted">No notes yet.</p>}
+
+                    <div className="watch-config-panel stack-sm">
+                      <div>
+                        <h5>Background Watch</h5>
+                        <p className="muted">Rolling passive history is stored separately from manual sessions, polled every 2 seconds, and pruned to the selected window.</p>
+                      </div>
+                      <label className="checkbox-row">
+                        <input
+                          checked={watchDraft.is_enabled}
+                          onChange={(event) =>
+                            setWatchDrafts((current) => ({
+                              ...current,
+                              [printer.id]: { ...watchDraft, is_enabled: event.target.checked },
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span>Enable Background Watch for this printer</span>
+                      </label>
+                      <label className="field field-inline">
+                        <span>Retention window</span>
+                        <select
+                          value={watchDraft.retention_hours}
+                          onChange={(event) =>
+                            setWatchDrafts((current) => ({
+                              ...current,
+                              [printer.id]: { ...watchDraft, retention_hours: Number(event.target.value) as WatchRetentionHours },
+                            }))
+                          }
+                        >
+                          {WATCH_RETENTION_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option} hours
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="card-actions">
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() => void handleSaveWatch(printer)}
+                          disabled={isSavingWatchSettings || isDeleting}
+                        >
+                          {isSavingWatchSettings ? "Saving watch..." : "Apply watch settings"}
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="card-actions">
                       <button

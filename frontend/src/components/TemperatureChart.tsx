@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { formatDisplayTimeMs, getTimestampMs } from "../lib/time";
-import type { ComparisonAlignment, TemperatureSample, ThermalEvent } from "../types/thermal";
+import type { ComparisonAlignment, TemperatureTraceSample, ThermalEvent } from "../types/thermal";
 
 const CHART_WIDTH = 760;
 const CHART_HEIGHT = 300;
@@ -16,7 +16,7 @@ const TICK_COUNT = 5;
 type Series = {
   label: string;
   colorClass: "primary" | "secondary";
-  samples: TemperatureSample[];
+  samples: TemperatureTraceSample[];
   events?: ThermalEvent[];
 };
 

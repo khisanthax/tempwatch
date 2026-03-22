@@ -1,4 +1,8 @@
 import type {
+  BackgroundWatchConfig,
+  BackgroundWatchConfigUpdate,
+  BackgroundWatchPromoteInput,
+  BackgroundWatchSample,
   PrinterConnectionCheck,
   PrinterCreateInput,
   PrinterProfile,
@@ -7,6 +11,7 @@ import type {
   SessionStatus,
   TemperatureSample,
   ThermalEvent,
+  WatchRetentionHours,
 } from "../types/thermal";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
@@ -80,6 +85,54 @@ export async function deletePrinter(printerId: number): Promise<void> {
 export async function checkPrinterConnection(printerId: number): Promise<PrinterConnectionCheck> {
   const response = await fetch(`${apiBaseUrl}/printers/${printerId}/connection-check`);
   return readJson<PrinterConnectionCheck>(response);
+}
+
+export async function updateBackgroundWatchConfig(
+  printerId: number,
+  payload: BackgroundWatchConfigUpdate,
+): Promise<BackgroundWatchConfig> {
+  const response = await fetch(`${apiBaseUrl}/printers/${printerId}/watch-config`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return readJson<BackgroundWatchConfig>(response);
+}
+
+export async function fetchBackgroundWatchSamples(
+  printerId: number,
+  options?: { hours?: WatchRetentionHours },
+): Promise<BackgroundWatchSample[]> {
+  const params = new URLSearchParams();
+  if (options?.hours !== undefined) {
+    params.set("hours", String(options.hours));
+  }
+
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const response = await fetch(`${apiBaseUrl}/printers/${printerId}/watch/samples${suffix}`);
+  return readJson<BackgroundWatchSample[]>(response);
+}
+
+export async function promoteBackgroundWatchHistory(
+  printerId: number,
+  payload: BackgroundWatchPromoteInput,
+): Promise<SessionRecord> {
+  const response = await fetch(`${apiBaseUrl}/printers/${printerId}/watch/promote`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      label: payload.label || null,
+      save_notes: payload.save_notes || null,
+      hours: payload.hours || null,
+    }),
+  });
+
+  return readJson<SessionRecord>(response);
 }
 
 export async function fetchSessions(options?: { printerId?: number; status?: SessionStatus }): Promise<SessionRecord[]> {

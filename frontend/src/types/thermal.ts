@@ -1,3 +1,15 @@
+export type WatchRetentionHours = 4 | 8 | 12 | 24;
+
+export interface BackgroundWatchConfig {
+  id: number;
+  printer_id: number;
+  is_enabled: boolean;
+  retention_hours: WatchRetentionHours;
+  poll_interval_seconds: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PrinterProfile {
   id: number;
   name: string;
@@ -5,6 +17,7 @@ export interface PrinterProfile {
   api_key: string | null;
   notes: string | null;
   is_enabled: boolean;
+  watch_config: BackgroundWatchConfig | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +39,17 @@ export interface PrinterConnectionCheck {
   klippy_state: string | null;
 }
 
+export interface BackgroundWatchConfigUpdate {
+  is_enabled?: boolean;
+  retention_hours?: WatchRetentionHours;
+}
+
+export interface BackgroundWatchPromoteInput {
+  label?: string | null;
+  save_notes?: string | null;
+  hours?: WatchRetentionHours | null;
+}
+
 export type SessionStatus = "active" | "completed" | "saved" | "discarded";
 export type ComparisonAlignment = "elapsed" | "absolute";
 
@@ -43,9 +67,8 @@ export interface SessionRecord {
   updated_at: string;
 }
 
-export interface TemperatureSample {
+export interface TemperatureTraceSample {
   id: number;
-  session_id: number;
   captured_at: string;
   nozzle_actual: number | null;
   nozzle_target: number | null;
@@ -59,6 +82,14 @@ export interface TemperatureSample {
   raw_payload: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TemperatureSample extends TemperatureTraceSample {
+  session_id: number;
+}
+
+export interface BackgroundWatchSample extends TemperatureTraceSample {
+  printer_id: number;
 }
 
 export interface ThermalEvent {
