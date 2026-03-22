@@ -59,18 +59,17 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Priority Order
 
-### Current Required Slice: Persistence And Session Review UX
+### Current Required Slice: Layout, Time, And Persistence Corrections
 
 This is the active implementation priority and must stay ahead of websocket work.
 
-1. Docker persistence hardening so SQLite survives Portainer redeploys.
-2. Save / discard session flow verification and packaging follow-up if persistence changes expose gaps.
-3. Saved sessions browser verification against persisted Docker data.
-4. Session comparison view verification against persisted Docker data.
-5. Event markers on graphs.
-6. Sample table visible row limits with scrolling after 5 / 10 / 25 rows.
-7. Consistent local-browser timezone display for all user-facing timestamps.
-8. Docker Compose / Portainer documentation for persistence and recovery expectations.
+1. Horizontal primary navigation with responsive fallback only on narrow screens.
+2. Sessions-page layout refresh so Start Session and Recent Sessions sit side by side on wider screens while Session Detail stays logically separated for review.
+3. Sample-table row-limit and scrolling behavior verification, including sticky header behavior if practical during auto-refresh.
+4. Timestamp serialization and display correction so TempWatch does not show UTC to users; prefer Moonraker-host timezone later, but use a deterministic `America/New_York` fallback now unless reliable host-timezone retrieval is implemented.
+5. Graph-orientation sanity check so the main trace remains time on the x-axis and temperature on the y-axis.
+6. Docker / Portainer persistence verification and documentation so SQLite survives container replacement and the recovery limitations are explicit.
+7. Roadmap clarification that only one active recording session is allowed per printer, while multiple printers may record concurrently and the UI remains optimized around one selected session at a time.
 
 ### Deferred Until After The Above Slice
 
@@ -94,7 +93,7 @@ This is the active implementation priority and must stay ahead of websocket work
 
 - Printer profile CRUD.
 - Manual session start/stop flow.
-- Enforce one active session per printer.
+- Enforce one active session per printer while allowing different printers to record concurrently.
 - Enforce 4-day maximum session duration across active recordings.
 - Persist samples and notable thermal events.
 - Live recording page with streaming graph.
@@ -107,7 +106,7 @@ This is the active implementation priority and must stay ahead of websocket work
 4. Event markers in live and saved-session graphs.
 5. Docker Compose local run path and setup documentation.
 6. Persistence hardening for Docker / Portainer redeploys.
-7. Stable sample-table scrolling and timestamp rendering in the browser timezone.
+7. Stable sample-table scrolling and timestamp rendering in the chosen deployment timezone.
 
 ### Phase 4: Reliability And Diagnostics
 
@@ -151,9 +150,10 @@ This is the active implementation priority and must stay ahead of websocket work
 
 - Repository is initialized on `main` and pushed to GitHub.
 - Backend FastAPI app runs from `backend/app` with config, SQLAlchemy setup, automatic table creation, and an in-process recording loop.
-- Frontend React app includes printer management with edit/delete actions, live session control, a saved sessions browser, and a first comparison workflow with local-browser timestamp rendering.
+- Frontend React app includes printer management with edit/delete actions, live session control, a saved sessions browser, a first comparison workflow, horizontal primary navigation, and a review-first sessions layout.
 - Printer profile CRUD endpoints, safe printer deletion, and session lifecycle endpoints exist.
 - Session states support `active`, `completed`, `saved`, and `discarded`.
+- TempWatch supports multiple active sessions across different printers, but still limits each printer to one active session and keeps the UI centered on one selected session at a time.
 - Completed sessions can be saved with notes or discarded from the session detail flow.
 - Saved sessions can be filtered by printer, reviewed with notes/sample counts, and compared two-at-a-time with elapsed or absolute alignment.
 - Session and comparison graphs render persisted lifecycle events as markers using the stored `thermal_events` timeline, with explicit time-on-x and temperature-on-y axis framing.
@@ -161,8 +161,9 @@ This is the active implementation priority and must stay ahead of websocket work
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
 - If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
 - Docker packaging mounts `/data`, points SQLite at `/data/tempwatch.db`, and now pins the named volume to `tempwatch_data` so Portainer redeploys reuse the same database location.
-- Session detail now supports a user-selectable 5 / 10 / 25 visible-row limit with a stable scrolling sample pane during auto-refresh.
+- Session detail now supports a user-selectable 5 / 10 / 25 visible-row limit with a sticky-header scrolling sample pane during auto-refresh.
 - Frontend API configuration defaults to relative `/api/v1` calls so the same build works for Vite development and the Nginx reverse-proxy Docker path.
+- API datetimes are now serialized as UTC with explicit `Z` suffixes, and the frontend currently renders all user-facing times in the deterministic `America/New_York` deployment timezone while Moonraker-host timezone discovery remains deferred.
 - Docker CLI is not installed in this workspace, so the Compose files can only be statically validated here.
 
 ## Decision Log / Technical Notes
@@ -183,7 +184,8 @@ This is the active implementation priority and must stay ahead of websocket work
 - Frontend API calls default to `/api/v1`, with Vite proxying local development traffic and Nginx proxying Docker traffic, so one frontend build target works across both run modes.
 - Docker host port defaults were moved off the common `8080`/`8000` pair to `8480`/`8008` to reduce local conflicts during testing.
 - Printer deletion is intentionally blocked once sessions exist so recorded diagnostics cannot be removed accidentally through profile cleanup.
-- Frontend timestamp parsing treats timezone-naive API datetimes as UTC before formatting them in the user's local browser timezone.
+- SQLite-backed datetimes are serialized back out of the API as explicit UTC `Z` timestamps to avoid timezone ambiguity at the frontend boundary.
+- TempWatch currently uses a deterministic `America/New_York` display timezone in the frontend because Moonraker-host timezone discovery is not implemented yet.
 - Portainer redeploy testing showed stack-scoped volume naming was not reliable enough, so the Docker volume name is now pinned explicitly for redeploy stability.
 
 ## Known Risks / Open Questions
@@ -210,9 +212,10 @@ This is the active implementation priority and must stay ahead of websocket work
 
 ## Next Steps
 
-1. Validate the Docker Compose stack on a machine with Docker installed and confirm the pinned Docker volume preserves SQLite data across redeploys.
-2. If that runtime validation exposes more current-slice gaps, fix them before starting websocket work.
-3. Only after the current required slice is closed, start websocket ingestion, then follow with the first diagnostic helpers and a deliberate data-retention flow.
+1. Re-verify sample-table scrolling and desktop/mobile layout behavior against real browser runtime, then close any remaining UI gaps in the current slice.
+2. Validate the Docker Compose / Portainer persistence path on a machine with Docker installed and confirm the pinned volume survives redeploys.
+3. If current-slice runtime validation exposes more gaps, fix them before starting websocket work.
+4. Only after the current required slice is closed, start websocket ingestion, then follow with the first diagnostic helpers and a deliberate data-retention flow.
 
 ## Recent Completed Work Log
 
@@ -231,6 +234,8 @@ This is the active implementation priority and must stay ahead of websocket work
 - 2026-03-22: Pinned the Docker SQLite volume name and documented Portainer persistence and migration expectations.
 - 2026-03-22: Added a selectable 5 / 10 / 25 visible-row limit for the live sample table and locked it to a stable scrolling pane during auto-refresh.
 - 2026-03-22: Clarified the main temperature graph with explicit time and temperature axes so live and comparison traces read in the expected Klipper-style orientation.
+- 2026-03-22: Reworked the sessions review layout so Start Session and Recent Sessions sit side by side on wider screens and Session Detail remains below as the primary review surface.
+- 2026-03-22: Switched user-facing timestamp rendering to a deterministic Eastern Time fallback and added explicit UTC `Z` serialization for API datetime fields.
 
 ## Upcoming Commit Targets
 

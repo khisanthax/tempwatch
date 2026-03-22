@@ -1,8 +1,17 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import SessionStatus
+
+
+def serialize_utc_datetime(value: datetime) -> str:
+    normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return normalized.isoformat().replace("+00:00", "Z")
+
+
+class ReadModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_encoders={datetime: serialize_utc_datetime})
 
 
 class PrinterBase(BaseModel):
@@ -25,9 +34,7 @@ class PrinterUpdate(BaseModel):
     is_enabled: bool | None = None
 
 
-class PrinterRead(PrinterBase):
-    model_config = ConfigDict(from_attributes=True)
-
+class PrinterRead(ReadModel, PrinterBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -54,9 +61,7 @@ class SessionDispositionRequest(BaseModel):
     save_notes: str | None = None
 
 
-class SessionRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class SessionRead(ReadModel):
     id: int
     printer_id: int
     label: str | None
@@ -70,9 +75,7 @@ class SessionRead(BaseModel):
     updated_at: datetime
 
 
-class TemperatureSampleRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class TemperatureSampleRead(ReadModel):
     id: int
     session_id: int
     captured_at: datetime
@@ -90,9 +93,7 @@ class TemperatureSampleRead(BaseModel):
     updated_at: datetime
 
 
-class ThermalEventRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class ThermalEventRead(ReadModel):
     id: int
     session_id: int
     event_type: str
@@ -103,6 +104,6 @@ class ThermalEventRead(BaseModel):
     updated_at: datetime
 
 
-class SessionCaptureResponse(BaseModel):
+class SessionCaptureResponse(ReadModel):
     session: SessionRead
     sample: TemperatureSampleRead

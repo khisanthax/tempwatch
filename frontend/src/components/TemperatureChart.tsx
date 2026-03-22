@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { getTimestampMs } from "../lib/time";
+import { formatDisplayTimeMs, getTimestampMs } from "../lib/time";
 import type { ComparisonAlignment, TemperatureSample, ThermalEvent } from "../types/thermal";
 
 const CHART_WIDTH = 760;
@@ -12,12 +12,6 @@ const PLOT_BOTTOM = 52;
 const PLOT_WIDTH = CHART_WIDTH - PLOT_LEFT - PLOT_RIGHT;
 const PLOT_HEIGHT = CHART_HEIGHT - PLOT_TOP - PLOT_BOTTOM;
 const TICK_COUNT = 5;
-
-const absoluteTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
 
 type Series = {
   label: string;
@@ -245,7 +239,7 @@ function normalizeTime(
 
 function formatTimeTick(value: number, alignment: ComparisonAlignment): string {
   if (alignment === "absolute") {
-    return absoluteTimeFormatter.format(new Date(value));
+    return formatDisplayTimeMs(value);
   }
 
   const totalSeconds = Math.max(0, Math.round(value / 1000));

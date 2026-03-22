@@ -2,7 +2,7 @@ import { Dispatch, SetStateAction, useEffect, useState } from "react";
 
 import { TemperatureChart } from "../components/TemperatureChart";
 import { fetchPrinters, fetchSamples, fetchSessionEvents, fetchSessions } from "../lib/api";
-import { formatLocalDateTime, getTimestampMs } from "../lib/time";
+import { DISPLAY_TIMEZONE, formatDisplayDateTime, getTimestampMs } from "../lib/time";
 import type { ComparisonAlignment, PrinterProfile, SessionRecord, TemperatureSample, ThermalEvent } from "../types/thermal";
 
 export function SavedSessionsPage() {
@@ -85,7 +85,7 @@ export function SavedSessionsPage() {
 
   return (
     <section className="stack-lg">
-      <header className="page-header">
+      <header className="page-header page-header-wrap">
         <div>
           <h2>Saved sessions</h2>
           <p>Review completed sessions that were kept for diagnostics and compare two runs from the same printer.</p>
@@ -94,6 +94,8 @@ export function SavedSessionsPage() {
           Refresh
         </button>
       </header>
+
+      <p className="muted page-note">Times are shown in {DISPLAY_TIMEZONE}. Absolute chart alignment uses the same deployment timezone.</p>
 
       {error ? <div className="alert">{error}</div> : null}
 
@@ -104,7 +106,7 @@ export function SavedSessionsPage() {
         </div>
         <label className="field field-inline">
           <span>Filter by printer</span>
-          <select value={filterPrinterId} onChange={(event) => setFilterPrinterId(event.target.value ? Number(event.target.value) : "") }>
+          <select value={filterPrinterId} onChange={(event) => setFilterPrinterId(event.target.value ? Number(event.target.value) : "")}>
             <option value="">All printers</option>
             {printers.map((printer) => (
               <option key={printer.id} value={printer.id}>
@@ -129,7 +131,7 @@ export function SavedSessionsPage() {
                   <span className="status-pill inactive">saved</span>
                 </div>
                 <p className="muted">
-                  {formatLocalDateTime(session.started_at)} to {session.ended_at ? formatLocalDateTime(session.ended_at) : "in progress"}
+                  {formatDisplayDateTime(session.started_at)} to {session.ended_at ? formatDisplayDateTime(session.ended_at) : "in progress"}
                 </p>
                 <p className="muted">Duration: {formatDuration(session.started_at, session.ended_at)}</p>
                 <p className="muted">Samples: {session.sample_count}</p>
@@ -149,7 +151,7 @@ export function SavedSessionsPage() {
         <div className="comparison-controls">
           <label className="field">
             <span>Session A</span>
-            <select value={primarySessionId} onChange={(event) => setPrimarySessionId(event.target.value ? Number(event.target.value) : "") }>
+            <select value={primarySessionId} onChange={(event) => setPrimarySessionId(event.target.value ? Number(event.target.value) : "")}>
               <option value="">Select a saved session</option>
               {filteredSessions.map((session) => (
                 <option key={session.id} value={session.id}>
@@ -160,7 +162,7 @@ export function SavedSessionsPage() {
           </label>
           <label className="field">
             <span>Session B</span>
-            <select value={secondarySessionId} onChange={(event) => setSecondarySessionId(event.target.value ? Number(event.target.value) : "") }>
+            <select value={secondarySessionId} onChange={(event) => setSecondarySessionId(event.target.value ? Number(event.target.value) : "")}>
               <option value="">Select a second saved session</option>
               {filteredSessions
                 .filter((session) => primarySession === null || session.printer_id === primarySession.printer_id)

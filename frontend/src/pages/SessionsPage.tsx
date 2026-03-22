@@ -12,13 +12,14 @@ import {
   startSession,
   stopSession,
 } from "../lib/api";
-import { formatLocalDateTime, formatLocalTime, getTimestampMs } from "../lib/time";
+import { DISPLAY_TIMEZONE, formatDisplayDateTime, formatDisplayTime, getTimestampMs } from "../lib/time";
 import type { PrinterProfile, SessionRecord, TemperatureSample, ThermalEvent } from "../types/thermal";
 
 const ACTIVE_REFRESH_MS = 2000;
 const CLOCK_REFRESH_MS = 1000;
 const SAMPLE_ROW_HEIGHT_PX = 52;
 const SAMPLE_ROW_GAP_PX = 6;
+const SAMPLE_TABLE_HEADER_HEIGHT_PX = 46;
 const SAMPLE_ROW_OPTIONS = [5, 10, 25] as const;
 
 export function SessionsPage() {
@@ -56,8 +57,8 @@ export function SessionsPage() {
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
   const latestSample = samples[samples.length - 1] ?? null;
   const isSelectedSessionActive = selectedSession?.status === "active";
-  const sampleTableBodyMaxHeight = useMemo(() => {
-    return visibleSampleRows * SAMPLE_ROW_HEIGHT_PX + Math.max(0, visibleSampleRows - 1) * SAMPLE_ROW_GAP_PX;
+  const sampleTableScrollMaxHeight = useMemo(() => {
+    return SAMPLE_TABLE_HEADER_HEIGHT_PX + visibleSampleRows * SAMPLE_ROW_HEIGHT_PX + Math.max(0, visibleSampleRows - 1) * SAMPLE_ROW_GAP_PX;
   }, [visibleSampleRows]);
 
   useEffect(() => {
@@ -235,7 +236,7 @@ export function SessionsPage() {
 
   return (
     <section className="stack-lg">
-      <header className="page-header">
+      <header className="page-header page-header-wrap">
         <div>
           <h2>Sessions</h2>
           <p>Start a manual recording session, inspect current readings, and review persisted temperature traces.</p>
@@ -245,228 +246,228 @@ export function SessionsPage() {
         </button>
       </header>
 
+      <p className="muted page-note">Times are shown in {DISPLAY_TIMEZONE}. One active session is allowed per printer, but different printers may record at the same time.</p>
+
       {error ? <div className="alert">{error}</div> : null}
 
-      <div className="session-layout">
-        <div className="stack-md">
-          <form className="panel stack-md" onSubmit={handleStartSession}>
-            <div>
-              <h3>Start session</h3>
-              <p className="muted">Only one active session is allowed per printer.</p>
-            </div>
-
-            <label className="field">
-              <span>Printer</span>
-              <select value={selectedPrinterId} onChange={(event) => setSelectedPrinterId(event.target.value ? Number(event.target.value) : "") }>
-                <option value="">Select a printer</option>
-                {enabledPrinters.map((printer) => (
-                  <option key={printer.id} value={printer.id}>
-                    {printer.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Label</span>
-              <input value={sessionLabel} onChange={(event) => setSessionLabel(event.target.value)} placeholder="PID tuning check" />
-            </label>
-
-            <button className="primary-button" type="submit" disabled={isSubmitting || enabledPrinters.length === 0}>
-              {isSubmitting ? "Starting..." : "Start session"}
-            </button>
-          </form>
-
-          <div className="panel stack-md">
-            <div className="section-label">
-              <h3>Recent sessions</h3>
-              <span>{sessions.length} total</span>
-            </div>
-
-            {isLoading ? <p>Loading sessions...</p> : null}
-            {!isLoading && sessions.length === 0 ? <p className="muted">No sessions yet.</p> : null}
-
-            {!isLoading && sessions.length > 0
-              ? sessions.map((session) => (
-                  <article
-                    className={session.id === selectedSessionId ? "session-card selected" : "session-card"}
-                    key={session.id}
-                    onClick={() => setSelectedSessionId(session.id)}
-                  >
-                    <div className="printer-card-header">
-                      <div>
-                        <h4>{session.label || "Untitled session"}</h4>
-                        <p className="muted">{printerName(session.printer_id)}</p>
-                      </div>
-                      <span className={`status-pill ${session.status === "active" ? "active" : "inactive"}`}>{session.status}</span>
-                    </div>
-                    <p className="muted">Started: {formatLocalDateTime(session.started_at)}</p>
-                    <p className="muted">Samples: {session.sample_count}</p>
-                    <div className="card-actions">
-                      {session.status === "active" ? (
-                        <>
-                          <button
-                            className="ghost-button"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleCaptureSample(session.id);
-                            }}
-                            disabled={actionSessionId === session.id}
-                          >
-                            {actionSessionId === session.id ? "Working..." : "Capture sample"}
-                          </button>
-                          <button
-                            className="ghost-button"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleStopSession(session.id);
-                            }}
-                            disabled={actionSessionId === session.id}
-                          >
-                            Stop
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </article>
-                ))
-              : null}
+      <div className="session-overview-grid">
+        <form className="panel stack-md" onSubmit={handleStartSession}>
+          <div>
+            <h3>Start session</h3>
+            <p className="muted">Only one active session is allowed per printer.</p>
           </div>
-        </div>
 
-        <div className="stack-md">
-          <div className="panel stack-md">
-            <div className="section-label">
-              <h3>Session detail</h3>
-              <span>{samples.length} recorded</span>
-            </div>
+          <label className="field">
+            <span>Printer</span>
+            <select value={selectedPrinterId} onChange={(event) => setSelectedPrinterId(event.target.value ? Number(event.target.value) : "")}>
+              <option value="">Select a printer</option>
+              {enabledPrinters.map((printer) => (
+                <option key={printer.id} value={printer.id}>
+                  {printer.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-            {!selectedSession ? <p className="muted">Select a session to inspect captured samples.</p> : null}
+          <label className="field">
+            <span>Label</span>
+            <input value={sessionLabel} onChange={(event) => setSessionLabel(event.target.value)} placeholder="PID tuning check" />
+          </label>
 
-            {selectedSession ? (
-              <>
-                <div className="sample-summary">
-                  <div>
-                    <strong>{selectedSession.label || "Untitled session"}</strong>
-                    <p className="muted">{printerName(selectedSession.printer_id)}</p>
-                    <p className="muted">Started: {formatLocalDateTime(selectedSession.started_at)}</p>
-                    <p className="muted">Ended: {selectedSession.ended_at ? formatLocalDateTime(selectedSession.ended_at) : "In progress"}</p>
-                  </div>
-                  <span className={`status-pill ${selectedSession.status === "active" ? "active" : "inactive"}`}>{selectedSession.status}</span>
-                </div>
+          <button className="primary-button" type="submit" disabled={isSubmitting || enabledPrinters.length === 0}>
+            {isSubmitting ? "Starting..." : "Start session"}
+          </button>
+        </form>
 
-                <div className="summary-grid">
-                  <article className="metric-card">
-                    <span className="metric-label">Elapsed</span>
-                    <strong>{formatElapsed(selectedSession.started_at, selectedSession.ended_at, now)}</strong>
-                  </article>
-                  <article className="metric-card">
-                    <span className="metric-label">Nozzle</span>
-                    <strong>{formatMetric(latestSample?.nozzle_actual, latestSample?.nozzle_target, "C")}</strong>
-                  </article>
-                  <article className="metric-card">
-                    <span className="metric-label">Bed</span>
-                    <strong>{formatMetric(latestSample?.bed_actual, latestSample?.bed_target, "C")}</strong>
-                  </article>
-                  <article className="metric-card">
-                    <span className="metric-label">Fan</span>
-                    <strong>{formatPercent(latestSample?.fan_speed)}</strong>
-                  </article>
-                </div>
+        <div className="panel stack-md">
+          <div className="section-label">
+            <h3>Recent sessions</h3>
+            <span>{sessions.length} total</span>
+          </div>
 
-                {selectedSession.status === "active" ? <p className="muted">Active sessions auto-refresh every 2 seconds while this page is open.</p> : null}
+          {isLoading ? <p>Loading sessions...</p> : null}
+          {!isLoading && sessions.length === 0 ? <p className="muted">No sessions yet.</p> : null}
 
-                {selectedSession.status === "completed" ? (
-                  <div className="panel inset-panel stack-md">
+          {!isLoading && sessions.length > 0
+            ? sessions.map((session) => (
+                <article
+                  className={session.id === selectedSessionId ? "session-card selected" : "session-card"}
+                  key={session.id}
+                  onClick={() => setSelectedSessionId(session.id)}
+                >
+                  <div className="printer-card-header">
                     <div>
-                      <h3>Finalize session</h3>
-                      <p className="muted">Completed sessions should be saved for later comparison or discarded when they are not useful.</p>
+                      <h4>{session.label || "Untitled session"}</h4>
+                      <p className="muted">{printerName(session.printer_id)}</p>
                     </div>
-                    <label className="field">
-                      <span>Save notes</span>
-                      <textarea
-                        rows={3}
-                        value={saveNotes}
-                        onChange={(event) => setSaveNotes(event.target.value)}
-                        placeholder="What was being tested, what fault was observed, or why this run matters"
-                      />
-                    </label>
-                    <div className="card-actions">
-                      <button
-                        className="primary-button"
-                        type="button"
-                        onClick={() => void handleSaveSession(selectedSession.id)}
-                        disabled={actionSessionId === selectedSession.id}
-                      >
-                        {actionSessionId === selectedSession.id ? "Working..." : "Save session"}
-                      </button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={() => void handleDiscardSession(selectedSession.id)}
-                        disabled={actionSessionId === selectedSession.id}
-                      >
-                        Discard session
-                      </button>
-                    </div>
+                    <span className={`status-pill ${session.status === "active" ? "active" : "inactive"}`}>{session.status}</span>
                   </div>
-                ) : null}
-
-                <TemperatureChart
-                  primary={{
-                    label: selectedSession.label || "Selected session",
-                    colorClass: "primary",
-                    samples,
-                    events,
-                  }}
-                />
-
-                {samples.length === 0 ? <p className="muted">No samples captured yet for this session.</p> : null}
-
-                {samples.length > 0 ? (
-                  <div className="sample-table">
-                    <div className="section-label sample-table-toolbar">
-                      <h3>Captured samples</h3>
-                      <label className="field field-inline sample-row-limit-control">
-                        <span>Visible rows</span>
-                        <select
-                          value={visibleSampleRows}
-                          onChange={(event) => setVisibleSampleRows(Number(event.target.value) as (typeof SAMPLE_ROW_OPTIONS)[number])}
+                  <p className="muted">Started: {formatDisplayDateTime(session.started_at)}</p>
+                  <p className="muted">Samples: {session.sample_count}</p>
+                  <div className="card-actions">
+                    {session.status === "active" ? (
+                      <>
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleCaptureSample(session.id);
+                          }}
+                          disabled={actionSessionId === session.id}
                         >
-                          {SAMPLE_ROW_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    <div className="sample-table-header">
-                      <span>Time</span>
-                      <span>Nozzle</span>
-                      <span>Bed</span>
-                      <span>Fan</span>
-                      <span>State</span>
-                    </div>
-                    <div className="sample-table-body" style={{ maxHeight: `${sampleTableBodyMaxHeight}px` }}>
-                      {samples.map((sample) => (
-                        <div className="sample-table-row" key={sample.id}>
-                          <span>{formatLocalTime(sample.captured_at)}</span>
-                          <span>{formatTemperature(sample.nozzle_actual, sample.nozzle_target)}</span>
-                          <span>{formatTemperature(sample.bed_actual, sample.bed_target)}</span>
-                          <span>{formatPercent(sample.fan_speed)}</span>
-                          <span>{sample.print_state ?? "unknown"}</span>
-                        </div>
-                      ))}
-                    </div>
+                          {actionSessionId === session.id ? "Working..." : "Capture sample"}
+                        </button>
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleStopSession(session.id);
+                          }}
+                          disabled={actionSessionId === session.id}
+                        >
+                          Stop
+                        </button>
+                      </>
+                    ) : null}
                   </div>
-                ) : null}
-              </>
-            ) : null}
-          </div>
+                </article>
+              ))
+            : null}
         </div>
+      </div>
+
+      <div className="panel stack-md">
+        <div className="section-label">
+          <h3>Session detail</h3>
+          <span>{samples.length} recorded</span>
+        </div>
+
+        {!selectedSession ? <p className="muted">Select a session to inspect captured samples.</p> : null}
+
+        {selectedSession ? (
+          <>
+            <div className="sample-summary">
+              <div>
+                <strong>{selectedSession.label || "Untitled session"}</strong>
+                <p className="muted">{printerName(selectedSession.printer_id)}</p>
+                <p className="muted">Started: {formatDisplayDateTime(selectedSession.started_at)}</p>
+                <p className="muted">Ended: {selectedSession.ended_at ? formatDisplayDateTime(selectedSession.ended_at) : "In progress"}</p>
+              </div>
+              <span className={`status-pill ${selectedSession.status === "active" ? "active" : "inactive"}`}>{selectedSession.status}</span>
+            </div>
+
+            <div className="summary-grid">
+              <article className="metric-card">
+                <span className="metric-label">Elapsed</span>
+                <strong>{formatElapsed(selectedSession.started_at, selectedSession.ended_at, now)}</strong>
+              </article>
+              <article className="metric-card">
+                <span className="metric-label">Nozzle</span>
+                <strong>{formatMetric(latestSample?.nozzle_actual, latestSample?.nozzle_target, "C")}</strong>
+              </article>
+              <article className="metric-card">
+                <span className="metric-label">Bed</span>
+                <strong>{formatMetric(latestSample?.bed_actual, latestSample?.bed_target, "C")}</strong>
+              </article>
+              <article className="metric-card">
+                <span className="metric-label">Fan</span>
+                <strong>{formatPercent(latestSample?.fan_speed)}</strong>
+              </article>
+            </div>
+
+            {selectedSession.status === "active" ? <p className="muted">Active sessions auto-refresh every 2 seconds while this page is open.</p> : null}
+
+            {selectedSession.status === "completed" ? (
+              <div className="panel inset-panel stack-md">
+                <div>
+                  <h3>Finalize session</h3>
+                  <p className="muted">Completed sessions should be saved for later comparison or discarded when they are not useful.</p>
+                </div>
+                <label className="field">
+                  <span>Save notes</span>
+                  <textarea
+                    rows={3}
+                    value={saveNotes}
+                    onChange={(event) => setSaveNotes(event.target.value)}
+                    placeholder="What was being tested, what fault was observed, or why this run matters"
+                  />
+                </label>
+                <div className="card-actions">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => void handleSaveSession(selectedSession.id)}
+                    disabled={actionSessionId === selectedSession.id}
+                  >
+                    {actionSessionId === selectedSession.id ? "Working..." : "Save session"}
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => void handleDiscardSession(selectedSession.id)}
+                    disabled={actionSessionId === selectedSession.id}
+                  >
+                    Discard session
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <TemperatureChart
+              primary={{
+                label: selectedSession.label || "Selected session",
+                colorClass: "primary",
+                samples,
+                events,
+              }}
+            />
+
+            {samples.length === 0 ? <p className="muted">No samples captured yet for this session.</p> : null}
+
+            {samples.length > 0 ? (
+              <div className="sample-table">
+                <div className="section-label sample-table-toolbar">
+                  <h3>Captured samples</h3>
+                  <label className="field field-inline sample-row-limit-control">
+                    <span>Visible rows</span>
+                    <select
+                      value={visibleSampleRows}
+                      onChange={(event) => setVisibleSampleRows(Number(event.target.value) as (typeof SAMPLE_ROW_OPTIONS)[number])}
+                    >
+                      {SAMPLE_ROW_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="sample-table-scroll" style={{ maxHeight: `${sampleTableScrollMaxHeight}px` }}>
+                  <div className="sample-table-header">
+                    <span>Time</span>
+                    <span>Nozzle</span>
+                    <span>Bed</span>
+                    <span>Fan</span>
+                    <span>State</span>
+                  </div>
+                  <div className="sample-table-body">
+                    {samples.map((sample) => (
+                      <div className="sample-table-row" key={sample.id}>
+                        <span>{formatDisplayTime(sample.captured_at)}</span>
+                        <span>{formatTemperature(sample.nozzle_actual, sample.nozzle_target)}</span>
+                        <span>{formatTemperature(sample.bed_actual, sample.bed_target)}</span>
+                        <span>{formatPercent(sample.fan_speed)}</span>
+                        <span>{sample.print_state ?? "unknown"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
       </div>
     </section>
   );

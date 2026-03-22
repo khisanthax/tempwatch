@@ -18,7 +18,7 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 ## Features In Place
 
 - Multiple printer profiles with add/edit/delete management, Moonraker URL storage, and connection checks
-- Manual session start/stop with one active session per printer
+- Manual session start/stop with one active session per printer and support for different printers recording at the same time
 - Automatic 4-day max session enforcement
 - Persistent temperature samples and lifecycle thermal events
 - Background polling for active sessions while the backend is running
@@ -27,6 +27,13 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - Saved sessions browser with printer filtering and sample counts
 - Saved-session comparison with elapsed-time or absolute-time alignment
 - Printer deletion guard that prevents removing profiles once recorded sessions exist
+
+## Time Display
+
+- TempWatch stores timestamps in UTC internally.
+- The current UI display fallback is fixed to `America/New_York` so the app does not depend on the browser timezone.
+- Moonraker / Klipper host-timezone discovery is not implemented yet, so all user-facing times and absolute-time chart ticks currently render in Eastern Time.
+- API responses now serialize UTC timestamps with an explicit `Z` suffix before the frontend formats them for display.
 
 ## Local Development
 
@@ -156,3 +163,4 @@ In this workspace, `docker` is not installed, so the Compose files were authored
 - Printer-side fault and state events are limited to what TempWatch already persists from the session lifecycle.
 - Saved-session comparison currently focuses on nozzle and bed overlays using the existing inline SVG graphing path.
 - Compose runtime validation still needs to be completed on a machine with Docker installed.
+- Moonraker host-timezone detection is not implemented yet; the deployment currently uses the documented Eastern Time fallback for display.
