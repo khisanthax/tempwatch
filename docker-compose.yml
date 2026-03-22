@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      TEMPWATCH_APP_NAME: ${TEMPWATCH_APP_NAME:-TempWatch}
+      TEMPWATCH_ENV: ${TEMPWATCH_ENV:-production}
+      TEMPWATCH_API_HOST: 0.0.0.0
+      TEMPWATCH_API_PORT: 8000
+      TEMPWATCH_DATABASE_URL: ${TEMPWATCH_DATABASE_URL:-sqlite:////data/tempwatch.db}
+      TEMPWATCH_SAMPLE_INTERVAL_SECONDS: ${TEMPWATCH_SAMPLE_INTERVAL_SECONDS:-1.0}
+      TEMPWATCH_RECORDING_LOOP_INTERVAL_SECONDS: ${TEMPWATCH_RECORDING_LOOP_INTERVAL_SECONDS:-1.0}
+    ports:
+      - "${TEMPWATCH_API_EXTERNAL_PORT:-8000}:8000"
+    volumes:
+      - tempwatch_data:/data
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "${TEMPWATCH_FRONTEND_PORT:-8080}:80"
+
+volumes:
+  tempwatch_data:

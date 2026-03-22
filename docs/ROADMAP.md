@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-TempWatch is a local-first web app for recording and analyzing 3D printer thermal behavior from Moonraker/Klipper printers. The app supports multiple printer profiles, manual recording sessions, SQLite-backed persistence, and staged diagnostic tooling for common thermal failures such as heater weakness, fan interference, PID instability, and wiring faults.
+TempWatch is a local-first web app for recording and analyzing 3D printer thermal behavior from Moonraker/Klipper printers. The app supports multiple printer profiles, manual recording sessions, SQLite-backed persistence, saved-session review, and staged diagnostic tooling for common thermal failures such as heater weakness, fan interference, PID instability, and wiring faults.
 
 ## Goals
 
@@ -12,6 +12,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Enforce a hard cap of 4 days per recording session.
 - Persist completed sessions so users can save or discard them after review.
 - Enable later comparison of saved sessions and diagnostic workflows.
+- Keep local installation straightforward with both direct dev and Docker Compose run paths.
 
 ## Non-Goals
 
@@ -38,12 +39,14 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - React Router for app structure.
 - Feature-oriented UI modules for printers, sessions, live charts, saved-session review, and diagnostics.
 - API client layer targeting local FastAPI endpoints.
+- Inline SVG charts reused across live review and saved-session comparison to stay dependency-light.
 
 ### Storage
 
 - SQLite database initialized from SQLAlchemy metadata on backend startup.
 - Current tables: `printer_profiles`, `recording_sessions`, `temperature_samples`, `thermal_events`.
 - Planned tables: comparison metadata and analyzer outputs if diagnostics need their own persistence.
+- Docker Compose persists the SQLite file in a named Docker volume.
 
 ### Moonraker Strategy
 
@@ -79,6 +82,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Saved session browser and filters.
 - Session detail view with timeline and metadata.
 - Comparison view for two sessions.
+- Event markers in live and saved-session graphs.
 
 ### Phase 4: Diagnostic Tools I
 
@@ -105,7 +109,9 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - [x] Sample persistence implemented.
 - [x] Automated active-session capture implemented.
 - [x] Saved/comparison flows implemented.
-- [ ] Docker Compose local run path implemented.
+- [x] Docker Compose local run path implemented.
+- [ ] Printer edit/delete UI implemented.
+- [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
 
 ## Current Status
@@ -114,14 +120,16 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Backend FastAPI app runs from `backend/app` with config, SQLAlchemy setup, automatic table creation, and an in-process recording loop.
 - Frontend React app includes printer management, live session control, a saved sessions browser, and a first comparison workflow.
 - Printer profile CRUD endpoints and session lifecycle endpoints exist.
-- Session states currently support `active`, `completed`, `saved`, and `discarded`.
+- Session states support `active`, `completed`, `saved`, and `discarded`.
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
-- Active sessions can capture normalized Moonraker temperature snapshots into persistent sample rows manually or through the background polling loop.
+- Active sessions capture normalized Moonraker temperature snapshots into persistent sample rows manually or through the background polling loop.
 - If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
-- Completed sessions can now be saved with notes or discarded from the session detail flow.
+- Completed sessions can be saved with notes or discarded from the session detail flow.
 - Saved sessions can be filtered by printer, reviewed with notes/sample counts, and compared two-at-a-time with elapsed or absolute alignment.
-- Session and comparison graphs now render persisted lifecycle events as markers using the stored `thermal_events` timeline.
-- Docker Compose support does not exist yet.
+- Session and comparison graphs render persisted lifecycle events as markers using the stored `thermal_events` timeline.
+- Docker packaging now includes a backend image, an Nginx-served frontend image, and a root `docker-compose.yml` with named-volume SQLite persistence.
+- Frontend API configuration now defaults to relative `/api/v1` calls so the same build works for Vite development and the Nginx reverse-proxy Docker path.
+- Docker CLI is not installed in this workspace, so the Compose files have been statically validated against the repo structure but not executed end to end here.
 
 ## Decision Log / Technical Notes
 
@@ -135,21 +143,23 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Frontend JSON/TOML-related config files were rewritten without a BOM after build/install validation exposed parsing issues.
 - Local backend validation is using the system Python installation because the generated `.venv` did not include a working `pip` in this environment.
 - Generated install/build artifacts are now excluded from version control; the first commit included some generated files, and a follow-up commit removed them.
-- SQLite returns naive datetimes for stored timestamps in this setup, so session cap enforcement now coerces database values to UTC before comparison.
+- SQLite returns naive datetimes for stored timestamps in this setup, so session cap enforcement coerces database values to UTC before comparison.
 - Initial Moonraker integration is intentionally limited to an HTTP `server/info` connectivity check before websocket recording is introduced.
 - Snapshot ingestion uses Moonraker HTTP object queries first so data normalization and session persistence can be exercised before websocket complexity is added.
 - Automated recording uses an in-process polling loop because it fits the current single-backend deployment and keeps restart recovery straightforward.
 - Thermal events are reserved for meaningful lifecycle/state transitions rather than every captured sample to avoid unbounded event noise.
 - Graphing and comparison continue to use inline SVG so the review workflow stays dependency-light and easy to reason about.
 - Saved-session review and comparison reuse the existing `recording_sessions`, `temperature_samples`, and `thermal_events` tables rather than introducing a second review-specific data model.
+- Frontend API calls now default to `/api/v1`, with Vite proxying local development traffic and Nginx proxying Docker traffic, so one frontend build target works across both run modes.
+- Docker Compose uses a named volume for the SQLite database so container recreation does not wipe session history by default.
 
 ## Known Risks / Open Questions
 
 - Automated sampling currently depends on the FastAPI process staying alive; a separate worker or websocket-driven path may still be needed for stronger resilience later.
 - Moonraker websocket ingestion is still missing.
 - Moonraker field availability varies by printer setup; sample normalization will need defensive handling for custom chamber sensors and alternate object names.
-- Save/discard and comparison are now usable, but there is no bulk session management or deletion flow for old saved sessions yet.
-- Dockerized local runs still need to be implemented and documented.
+- There is no bulk session management or deletion flow for old saved sessions yet.
+- Dockerfiles and Compose wiring are in place, but runtime verification still needs to be completed on a machine with Docker installed.
 - Existing SQLite files created before future schema changes will eventually need a migration path.
 
 ## What Changed From The Original Plan
@@ -163,13 +173,14 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Session UI landed before automatic recording loops so manual capture and persisted sample review could be exercised from the browser first.
 - Automated recording is starting with an in-process polling loop rather than a separate worker so the app stays simple and locally runnable.
 - Save/review/comparison builds on the current session/sample/event tables instead of introducing separate comparison storage.
+- Docker support now ships as a reverse-proxy frontend plus backend API pair rather than trying to serve the built frontend directly from FastAPI.
 
 ## Next Steps
 
-1. Add Dockerfiles and `docker-compose.yml`, then update setup docs to match the real run path.
-2. Extend printer management with edit/delete actions and richer printer status views.
-3. Revisit websocket ingestion once the saved-session review loop is usable end to end.
-4. Start the first diagnostic helpers on top of the saved/comparison data model.
+1. Add printer edit/delete actions and expose the same control flow in the frontend.
+2. Revisit Moonraker websocket ingestion so active sessions can capture richer state changes and printer-side events.
+3. Start the first diagnostic helpers on top of the saved/comparison data model.
+4. Validate the Compose stack on a machine with Docker installed and capture any packaging fixes that fall out of that run.
 
 ## Recent Completed Work Log
 
@@ -185,9 +196,10 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - 2026-03-21: Added a first live session detail view with elapsed time, current readings, auto-refresh, and an inline SVG temperature graph.
 - 2026-03-22: Exposed session sample counts and lifecycle events from the backend for saved-session review and graph markers.
 - 2026-03-22: Added session save/discard actions, a saved sessions browser, comparison overlays, and event markers in the frontend.
+- 2026-03-22: Added Dockerfiles, a root Compose stack, frontend proxy-aware API defaults, and setup documentation for local Docker-based runs.
 
 ## Upcoming Commit Targets
 
-- Commit 8: Saved-session backend APIs and event exposure.
-- Commit 9: Save/discard review flow, saved sessions browser, and comparison UI.
-- Commit 10: Docker Compose packaging and setup documentation.
+- Commit 11: Printer management refinement and richer status feedback.
+- Commit 12: Moonraker websocket ingestion baseline.
+- Commit 13: First diagnostic tooling slice on top of saved sessions.
