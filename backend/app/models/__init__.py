@@ -1,3 +1,19 @@
-﻿from app.models.entities import PrinterProfile, RecordingSession, SessionStatus, TemperatureSample, ThermalEvent
+from app.models.entities import (
+    BackgroundWatchConfig,
+    BackgroundWatchSample,
+    PrinterProfile,
+    RecordingSession,
+    SessionStatus,
+    TemperatureSample,
+    ThermalEvent,
+)
 
-__all__ = ["PrinterProfile", "RecordingSession", "SessionStatus", "TemperatureSample", "ThermalEvent"]
+__all__ = [
+    "BackgroundWatchConfig",
+    "BackgroundWatchSample",
+    "PrinterProfile",
+    "RecordingSession",
+    "SessionStatus",
+    "TemperatureSample",
+    "ThermalEvent",
+]

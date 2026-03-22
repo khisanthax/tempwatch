@@ -1,8 +1,19 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.thermal import PrinterConnectionCheckRead, PrinterCreate, PrinterRead, PrinterUpdate
+from app.schemas.thermal import (
+    BackgroundWatchConfigRead,
+    BackgroundWatchConfigUpdate,
+    BackgroundWatchPromoteRequest,
+    BackgroundWatchSampleRead,
+    PrinterConnectionCheckRead,
+    PrinterCreate,
+    PrinterRead,
+    PrinterUpdate,
+    SessionRead,
+)
+from app.services.background_watch import BackgroundWatchService
 from app.services.session_lifecycle import SessionLifecycleService
 
 router = APIRouter(prefix="/printers", tags=["printers"])
@@ -43,3 +54,35 @@ def check_printer_connection(printer_id: int, db: Session = Depends(get_db)) -> 
     service = SessionLifecycleService(db)
     printer = service.get_printer(printer_id)
     return service.check_printer_connection(printer)
+
+
+@router.patch("/{printer_id}/watch-config", response_model=BackgroundWatchConfigRead)
+def update_watch_config(printer_id: int, payload: BackgroundWatchConfigUpdate, db: Session = Depends(get_db)) -> BackgroundWatchConfigRead:
+    printer_service = SessionLifecycleService(db)
+    printer = printer_service.get_printer(printer_id)
+    watch_service = BackgroundWatchService(db)
+    return watch_service.update_watch_config(printer, **payload.model_dump(exclude_unset=True))
+
+
+@router.get("/{printer_id}/watch/samples", response_model=list[BackgroundWatchSampleRead])
+def list_watch_samples(
+    printer_id: int,
+    hours: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[BackgroundWatchSampleRead]:
+    printer_service = SessionLifecycleService(db)
+    printer = printer_service.get_printer(printer_id)
+    watch_service = BackgroundWatchService(db)
+    return watch_service.list_watch_samples(printer, hours=hours)
+
+
+@router.post("/{printer_id}/watch/promote", response_model=SessionRead, status_code=status.HTTP_201_CREATED)
+def promote_watch_history(
+    printer_id: int,
+    payload: BackgroundWatchPromoteRequest,
+    db: Session = Depends(get_db),
+) -> SessionRead:
+    printer_service = SessionLifecycleService(db)
+    printer = printer_service.get_printer(printer_id)
+    watch_service = BackgroundWatchService(db)
+    return watch_service.promote_watch_window(printer, **payload.model_dump())

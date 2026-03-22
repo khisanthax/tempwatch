@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.integrations.moonraker import MoonrakerClient
-from app.models import PrinterProfile, RecordingSession, SessionStatus, TemperatureSample, ThermalEvent
+from app.models import BackgroundWatchConfig, PrinterProfile, RecordingSession, SessionStatus, TemperatureSample, ThermalEvent
 
 settings = get_settings()
+DEFAULT_WATCH_RETENTION_HOURS = 4
 
 
 class SessionLifecycleService:
@@ -18,12 +19,15 @@ class SessionLifecycleService:
 
     def list_printers(self) -> list[PrinterProfile]:
         stmt: Select[tuple[PrinterProfile]] = select(PrinterProfile).order_by(PrinterProfile.name.asc())
-        return list(self.db.scalars(stmt))
+        printers = list(self.db.scalars(stmt))
+        self._ensure_watch_configs(printers)
+        return printers
 
     def get_printer(self, printer_id: int) -> PrinterProfile:
         printer = self.db.get(PrinterProfile, printer_id)
         if printer is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printer not found")
+        self._ensure_watch_configs([printer])
         return printer
 
     def create_printer(self, *, name: str, base_url: str, api_key: str | None, notes: str | None, is_enabled: bool) -> PrinterProfile:
@@ -38,6 +42,7 @@ class SessionLifecycleService:
             notes=notes,
             is_enabled=is_enabled,
         )
+        printer.watch_config = BackgroundWatchConfig(is_enabled=False, retention_hours=DEFAULT_WATCH_RETENTION_HOURS)
         self.db.add(printer)
         self.db.commit()
         self.db.refresh(printer)
@@ -71,6 +76,7 @@ class SessionLifecycleService:
         self.db.add(printer)
         self.db.commit()
         self.db.refresh(printer)
+        self._ensure_watch_configs([printer])
         return printer
 
     def delete_printer(self, printer: PrinterProfile) -> None:
@@ -281,6 +287,24 @@ class SessionLifecycleService:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A printer with this name already exists")
 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A printer with this Moonraker URL already exists")
+
+    def _ensure_watch_configs(self, printers: list[PrinterProfile]) -> None:
+        created = False
+        for printer in printers:
+            if printer.watch_config is not None:
+                continue
+            printer.watch_config = BackgroundWatchConfig(
+                printer_id=printer.id,
+                is_enabled=False,
+                retention_hours=DEFAULT_WATCH_RETENTION_HOURS,
+            )
+            self.db.add(printer.watch_config)
+            created = True
+
+        if created:
+            self.db.commit()
+            for printer in printers:
+                self.db.refresh(printer)
 
     def _expire_stale_sessions(self, *, printer_id: int | None = None) -> None:
         stmt = select(RecordingSession).where(RecordingSession.status == SessionStatus.ACTIVE)

@@ -27,7 +27,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 - FastAPI application under `backend/`.
 - SQLAlchemy ORM with SQLite for local persistence.
-- Service layer for printer profiles, session lifecycle, and Moonraker integration.
+- Service layer for printer profiles, manual-session lifecycle, background watch lifecycle, and Moonraker integration.
 - In-process recording loop for active session polling while the backend is running.
 - Background connection components for Moonraker websocket ingestion during active sessions.
 - Pydantic settings for environment-driven configuration.
@@ -37,7 +37,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - React + TypeScript application under `frontend/`.
 - Vite for local development/build.
 - React Router for app structure.
-- Feature-oriented UI modules for printers, sessions, live charts, saved-session review, and diagnostics.
+- Feature-oriented UI modules for printers, manual sessions, background watch history, live charts, saved-session review, and diagnostics.
 - API client layer targeting local FastAPI endpoints.
 - Inline SVG charts reused across live review and saved-session comparison to stay dependency-light.
 
@@ -45,6 +45,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 - SQLite database initialized from SQLAlchemy metadata on backend startup.
 - Current tables: `printer_profiles`, `recording_sessions`, `temperature_samples`, `thermal_events`.
+- Next tables for this slice: dedicated background-watch configuration and rolling watch-sample tables, plus any promotion metadata needed to move watch windows into manual sessions later.
 - Planned tables: analyzer outputs and any future diagnostic metadata that needs separate persistence.
 - Docker deployments must keep the SQLite file on a persistent mounted path that survives container replacement.
 - Docker Compose now targets an explicit named volume so Portainer redeploys reuse a stable SQLite location.
@@ -54,22 +55,22 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Current baseline: HTTP connectivity check against `server/info`.
 - Active-session sample capture uses HTTP object queries against `printer/objects/query`.
 - Automated recording uses an in-process polling loop to capture roughly one sample per second for active sessions.
-- Websocket ingestion is intentionally deferred until the save/review/comparison slice is complete and stable.
+- Websocket ingestion is intentionally deferred until background watch mode and the current local review workflows are complete and stable.
 - Normalize nozzle, bed, chamber, target, power, fan, and state metadata where available.
 
 ## Priority Order
 
-### Current Required Slice: Layout, Time, And Persistence Corrections
+### Current Required Slice: Background Watch Mode
 
 This is the active implementation priority and must stay ahead of websocket work.
 
-1. Horizontal primary navigation with responsive fallback only on narrow screens.
-2. Sessions-page layout refresh so Start Session and Recent Sessions sit side by side on wider screens while Session Detail stays logically separated for review.
-3. Sample-table row-limit and scrolling behavior verification, including sticky header behavior if practical during auto-refresh.
-4. Timestamp serialization and display correction so TempWatch does not show UTC to users; prefer Moonraker-host timezone later, but use a deterministic `America/New_York` fallback now unless reliable host-timezone retrieval is implemented.
-5. Graph-orientation sanity check so the main trace remains time on the x-axis and temperature on the y-axis.
-6. Docker / Portainer persistence verification and documentation so SQLite survives container replacement and the recovery limitations are explicit.
-7. Roadmap clarification that only one active recording session is allowed per printer, while multiple printers may record concurrently and the UI remains optimized around one selected session at a time.
+1. Add a separate per-printer background watch configuration model with enable/disable state and a rolling retention window of `4h`, `8h`, `12h`, or `24h`.
+2. Store rolling watch samples separately from manual-session samples so intentional diagnostics and passive watch history remain distinct concepts.
+3. Run background watch polling at a fixed 2-second interval for enabled printers and continuously prune samples older than the selected retention window.
+4. Add printer-management UI for watch enable/disable and retention selection without changing the manual-session flow.
+5. Add a recent watch-history view for a selected printer so rolling data can be inspected without promoting it to a manual session first.
+6. Add an initial backend/data-model hook to promote a recent watch window into a saved manual session later if practical in this slice.
+7. Update docs so manual sessions vs watch mode are clearly distinguished and websocket ingestion remains deferred.
 
 ### Deferred Until After The Above Slice
 
@@ -108,7 +109,14 @@ This is the active implementation priority and must stay ahead of websocket work
 6. Persistence hardening for Docker / Portainer redeploys.
 7. Stable sample-table scrolling and timestamp rendering in the chosen deployment timezone.
 
-### Phase 4: Reliability And Diagnostics
+### Phase 4: Background Watch Mode
+
+- Per-printer background watch configuration.
+- Rolling watch-sample persistence with fixed 2-second polling.
+- Retention-window pruning for 4 / 8 / 12 / 24 hour histories.
+- Recent watch-history view and first promotion hook into manual sessions.
+
+### Phase 5: Reliability And Diagnostics
 
 - Moonraker websocket ingestion.
 - Heat-Up Analyzer.
@@ -116,7 +124,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Cooling Impact Test Mode.
 - Data-retention and cleanup flow.
 
-### Phase 5: Diagnostic Tools II
+### Phase 6: Diagnostic Tools II
 
 - Smart PID Assistant.
 - Diagnosis Engine.
@@ -143,6 +151,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - [x] Frontend timezone rendering implemented.
 - [x] Docker persistence hardening for Portainer redeploys implemented.
 - [x] Sample table visible row limit control implemented.
+- [ ] Background watch mode implemented.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
 
@@ -166,6 +175,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - API datetimes are now serialized as UTC with explicit `Z` suffixes, and the frontend currently renders all user-facing times in the deterministic `America/New_York` deployment timezone while Moonraker-host timezone discovery remains deferred.
 - Docker CLI is not installed in this workspace, so the Compose files can only be statically validated here.
 - Built frontend output has been verified to contain the updated horizontal navigation, axis-labelled chart, and deterministic Eastern-time formatting, but live Docker/Portainer rendering still requires verification on the deployment host.
+- Background watch mode backend foundations now exist: dedicated watch config/sample tables, fixed 2-second polling hooks, rolling pruning, and promotion APIs are implemented, but the dedicated watch UI is still pending.
 
 ## Decision Log / Technical Notes
 
@@ -208,15 +218,16 @@ This is the active implementation priority and must stay ahead of websocket work
 - Session UI landed before automatic recording loops so manual capture and persisted sample review could be exercised from the browser first.
 - Automated recording started with an in-process polling loop rather than a separate worker so the app stays simple and locally runnable.
 - Save/review/comparison builds on the current session/sample/event tables instead of introducing separate comparison storage.
+- Background watch mode is being introduced as a separate rolling-history model instead of overloading manual sessions, because unexpected passive capture and intentional diagnostic recordings have different lifecycle rules.
 - Docker support ships as a reverse-proxy frontend plus backend API pair rather than trying to serve the built frontend directly from FastAPI.
 - Websocket ingestion is explicitly deferred until after the current persistence, session-review, row-limit, and timezone slice is closed.
 
 ## Next Steps
 
-1. Validate the live Docker / Portainer deployment after a rebuild and confirm the updated frontend shell, chart labels, and timestamp fallback are actually rendered in the browser.
-2. Validate the Docker Compose / Portainer persistence path on a machine with Docker installed and confirm the pinned volume survives redeploys.
-3. If live runtime validation exposes more gaps, fix them before starting websocket work.
-4. Only after the current required slice is closed, start websocket ingestion, then follow with the first diagnostic helpers and a deliberate data-retention flow.
+1. Add printer UI controls for watch enable/disable and retention window selection using the new backend watch-config endpoints.
+2. Add a first recent-history watch view for a selected printer and expose the initial watch-to-session promotion path if it stays clean in the UI.
+3. Update README and environment docs so manual sessions versus background watch mode are clearly separated before closing the slice.
+4. Only after background watch mode is complete, return to live deployment validation gaps and then websocket ingestion.
 
 ## Recent Completed Work Log
 
@@ -238,6 +249,8 @@ This is the active implementation priority and must stay ahead of websocket work
 - 2026-03-22: Reworked the sessions review layout so Start Session and Recent Sessions sit side by side on wider screens and Session Detail remains below as the primary review surface.
 - 2026-03-22: Switched user-facing timestamp rendering to a deterministic Eastern Time fallback and added explicit UTC `Z` serialization for API datetime fields.
 - 2026-03-22: Verified the built frontend bundle contains the updated navigation, chart, and timestamp logic, then hardened Docker frontend serving with no-store HTML headers and `pull_policy: build` to reduce stale Portainer deployments.
+- 2026-03-22: Re-prioritized the roadmap around a separate Background Watch Mode slice that keeps passive rolling watch history distinct from manual sessions.
+- 2026-03-22: Added the backend Background Watch Mode foundation with separate watch tables, rolling poll/prune behavior, and promotion APIs.
 
 ## Upcoming Commit Targets
 

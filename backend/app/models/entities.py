@@ -1,4 +1,4 @@
-﻿from collections.abc import Generator
+from collections.abc import Generator
 from datetime import UTC, datetime
 from enum import StrEnum
 
@@ -35,6 +35,12 @@ class PrinterProfile(TimestampMixin, Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     sessions: Mapped[list["RecordingSession"]] = relationship(back_populates="printer", cascade="all, delete-orphan")
+    watch_config: Mapped["BackgroundWatchConfig | None"] = relationship(
+        back_populates="printer",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+    watch_samples: Mapped[list["BackgroundWatchSample"]] = relationship(back_populates="printer", cascade="all, delete-orphan")
 
 
 class RecordingSession(TimestampMixin, Base):
@@ -85,3 +91,34 @@ class ThermalEvent(TimestampMixin, Base):
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     session: Mapped[RecordingSession] = relationship(back_populates="thermal_events")
+
+
+class BackgroundWatchConfig(TimestampMixin, Base):
+    __tablename__ = "background_watch_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    printer_id: Mapped[int] = mapped_column(ForeignKey("printer_profiles.id"), nullable=False, unique=True, index=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retention_hours: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
+
+    printer: Mapped[PrinterProfile] = relationship(back_populates="watch_config")
+
+
+class BackgroundWatchSample(TimestampMixin, Base):
+    __tablename__ = "background_watch_samples"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    printer_id: Mapped[int] = mapped_column(ForeignKey("printer_profiles.id"), nullable=False, index=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False, index=True)
+    nozzle_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    nozzle_target: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bed_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bed_target: Mapped[float | None] = mapped_column(Float, nullable=True)
+    chamber_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heater_power: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fan_speed: Mapped[float | None] = mapped_column(Float, nullable=True)
+    print_state: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="moonraker-http-watch", nullable=False)
+    raw_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    printer: Mapped[PrinterProfile] = relationship(back_populates="watch_samples")

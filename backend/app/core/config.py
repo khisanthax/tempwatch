@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./tempwatch.db")
     session_max_duration_hours: int = 96
     sample_interval_seconds: float = 1.0
+    watch_poll_interval_seconds: float = 2.0
     recording_loop_interval_seconds: float = 1.0
 
 
