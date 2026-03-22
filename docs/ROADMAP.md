@@ -142,8 +142,8 @@ This is the active implementation priority and must stay ahead of websocket work
 - [x] Docker Compose local run path implemented.
 - [x] Printer edit/delete UI implemented.
 - [x] Frontend timezone rendering implemented.
-- [ ] Docker persistence hardening for Portainer redeploys implemented.
-- [ ] Sample table visible row limit control implemented.
+- [x] Docker persistence hardening for Portainer redeploys implemented.
+- [x] Sample table visible row limit control implemented.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
 
@@ -161,7 +161,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
 - If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
 - Docker packaging mounts `/data`, points SQLite at `/data/tempwatch.db`, and now pins the named volume to `tempwatch_data` so Portainer redeploys reuse the same database location.
-- Session detail currently uses a bounded sample table, but it still needs a user-selectable visible row limit with stable scrolling during auto-refresh.
+- Session detail now supports a user-selectable 5 / 10 / 25 visible-row limit with a stable scrolling sample pane during auto-refresh.
 - Frontend API configuration defaults to relative `/api/v1` calls so the same build works for Vite development and the Nginx reverse-proxy Docker path.
 - Docker CLI is not installed in this workspace, so the Compose files can only be statically validated here.
 
@@ -209,10 +209,9 @@ This is the active implementation priority and must stay ahead of websocket work
 
 ## Next Steps
 
-1. Add a visible row-count control for the session sample table and keep scrolling stable during auto-refresh.
-2. Validate the Docker Compose stack on a machine with Docker installed and confirm the pinned Docker volume preserves SQLite data across redeploys.
-3. If that runtime validation exposes more current-slice gaps, fix them before starting websocket work.
-4. Only after the current required slice is closed, start websocket ingestion, then follow with the first diagnostic helpers and a deliberate data-retention flow.
+1. Validate the Docker Compose stack on a machine with Docker installed and confirm the pinned Docker volume preserves SQLite data across redeploys.
+2. If that runtime validation exposes more current-slice gaps, fix them before starting websocket work.
+3. Only after the current required slice is closed, start websocket ingestion, then follow with the first diagnostic helpers and a deliberate data-retention flow.
 
 ## Recent Completed Work Log
 
@@ -229,6 +228,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - 2026-03-22: Added printer edit/delete flows, backend delete guards, and frontend profile editing controls.
 - 2026-03-22: Fixed frontend timestamp localization to use the browser timezone and bounded the live sample table with scrolling.
 - 2026-03-22: Pinned the Docker SQLite volume name and documented Portainer persistence and migration expectations.
+- 2026-03-22: Added a selectable 5 / 10 / 25 visible-row limit for the live sample table and locked it to a stable scrolling pane during auto-refresh.
 
 ## Upcoming Commit Targets
 

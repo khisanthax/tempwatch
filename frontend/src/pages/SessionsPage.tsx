@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { TemperatureChart } from "../components/TemperatureChart";
 import {
@@ -17,6 +17,9 @@ import type { PrinterProfile, SessionRecord, TemperatureSample, ThermalEvent } f
 
 const ACTIVE_REFRESH_MS = 2000;
 const CLOCK_REFRESH_MS = 1000;
+const SAMPLE_ROW_HEIGHT_PX = 52;
+const SAMPLE_ROW_GAP_PX = 6;
+const SAMPLE_ROW_OPTIONS = [5, 10, 25] as const;
 
 export function SessionsPage() {
   const [printers, setPrinters] = useState<PrinterProfile[]>([]);
@@ -27,6 +30,7 @@ export function SessionsPage() {
   const [sessionLabel, setSessionLabel] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [saveNotes, setSaveNotes] = useState("");
+  const [visibleSampleRows, setVisibleSampleRows] = useState<(typeof SAMPLE_ROW_OPTIONS)[number]>(10);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionSessionId, setActionSessionId] = useState<number | null>(null);
@@ -52,6 +56,9 @@ export function SessionsPage() {
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
   const latestSample = samples[samples.length - 1] ?? null;
   const isSelectedSessionActive = selectedSession?.status === "active";
+  const sampleTableBodyMaxHeight = useMemo(() => {
+    return visibleSampleRows * SAMPLE_ROW_HEIGHT_PX + Math.max(0, visibleSampleRows - 1) * SAMPLE_ROW_GAP_PX;
+  }, [visibleSampleRows]);
 
   useEffect(() => {
     if (!isSelectedSessionActive || selectedSessionId === null) {
@@ -420,6 +427,22 @@ export function SessionsPage() {
 
                 {samples.length > 0 ? (
                   <div className="sample-table">
+                    <div className="section-label sample-table-toolbar">
+                      <h3>Captured samples</h3>
+                      <label className="field field-inline sample-row-limit-control">
+                        <span>Visible rows</span>
+                        <select
+                          value={visibleSampleRows}
+                          onChange={(event) => setVisibleSampleRows(Number(event.target.value) as (typeof SAMPLE_ROW_OPTIONS)[number])}
+                        >
+                          {SAMPLE_ROW_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
                     <div className="sample-table-header">
                       <span>Time</span>
                       <span>Nozzle</span>
@@ -427,7 +450,7 @@ export function SessionsPage() {
                       <span>Fan</span>
                       <span>State</span>
                     </div>
-                    <div className="sample-table-body">
+                    <div className="sample-table-body" style={{ maxHeight: `${sampleTableBodyMaxHeight}px` }}>
                       {samples.map((sample) => (
                         <div className="sample-table-row" key={sample.id}>
                           <span>{formatLocalTime(sample.captured_at)}</span>

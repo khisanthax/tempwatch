@@ -260,12 +260,13 @@ select {
 .sample-table-body {
   display: grid;
   gap: 0.4rem;
-  max-height: 22rem;
   overflow-y: auto;
   padding-right: 0.25rem;
+  overscroll-behavior: contain;
 }
 
 .sample-table-row {
+  min-height: 52px;
   padding: 0.65rem 0.75rem;
   border-radius: 12px;
   background: rgba(244, 248, 252, 0.9);
@@ -399,6 +400,14 @@ select {
 
 .field-inline {
   max-width: 320px;
+}
+
+.sample-table-toolbar {
+  align-items: end;
+}
+
+.sample-row-limit-control {
+  min-width: 110px;
 }
 
 .saved-session-list {
