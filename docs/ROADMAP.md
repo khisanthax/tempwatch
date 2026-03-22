@@ -46,7 +46,8 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - SQLite database initialized from SQLAlchemy metadata on backend startup.
 - Current tables: `printer_profiles`, `recording_sessions`, `temperature_samples`, `thermal_events`.
 - Planned tables: analyzer outputs and any future diagnostic metadata that needs separate persistence.
-- Docker Compose persists the SQLite file in a named Docker volume.
+- Docker deployments must keep the SQLite file on a persistent mounted path that survives container replacement.
+- Docker Compose now targets an explicit named volume so Portainer redeploys reuse a stable SQLite location.
 
 ### Moonraker Strategy
 
@@ -58,15 +59,18 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Priority Order
 
-### Current Required Slice: Session Review And Docker Run Path
+### Current Required Slice: Persistence And Session Review UX
 
 This is the active implementation priority and must stay ahead of websocket work.
 
-1. Save / discard session flow.
-2. Saved sessions browser.
-3. Session comparison view.
-4. Event markers on graphs.
-5. Docker Compose setup and documentation.
+1. Docker persistence hardening so SQLite survives Portainer redeploys.
+2. Save / discard session flow verification and packaging follow-up if persistence changes expose gaps.
+3. Saved sessions browser verification against persisted Docker data.
+4. Session comparison view verification against persisted Docker data.
+5. Event markers on graphs.
+6. Sample table visible row limits with scrolling after 5 / 10 / 25 rows.
+7. Consistent local-browser timezone display for all user-facing timestamps.
+8. Docker Compose / Portainer documentation for persistence and recovery expectations.
 
 ### Deferred Until After The Above Slice
 
@@ -102,6 +106,8 @@ This is the active implementation priority and must stay ahead of websocket work
 3. Session detail and comparison views.
 4. Event markers in live and saved-session graphs.
 5. Docker Compose local run path and setup documentation.
+6. Persistence hardening for Docker / Portainer redeploys.
+7. Stable sample-table scrolling and timestamp rendering in the browser timezone.
 
 ### Phase 4: Reliability And Diagnostics
 
@@ -135,6 +141,9 @@ This is the active implementation priority and must stay ahead of websocket work
 - [x] Event markers on graphs implemented.
 - [x] Docker Compose local run path implemented.
 - [x] Printer edit/delete UI implemented.
+- [x] Frontend timezone rendering implemented.
+- [ ] Docker persistence hardening for Portainer redeploys implemented.
+- [ ] Sample table visible row limit control implemented.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
 
@@ -151,10 +160,10 @@ This is the active implementation priority and must stay ahead of websocket work
 - Active sessions capture normalized Moonraker temperature snapshots into persistent sample rows manually or through the background polling loop.
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
 - If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
-- Docker packaging includes a backend image, an Nginx-served frontend image, and a root `docker-compose.yml` with named-volume SQLite persistence using host defaults `8480` for the frontend and `8008` for the backend API.
+- Docker packaging mounts `/data`, points SQLite at `/data/tempwatch.db`, and now pins the named volume to `tempwatch_data` so Portainer redeploys reuse the same database location.
+- Session detail currently uses a bounded sample table, but it still needs a user-selectable visible row limit with stable scrolling during auto-refresh.
 - Frontend API configuration defaults to relative `/api/v1` calls so the same build works for Vite development and the Nginx reverse-proxy Docker path.
-- Session detail now keeps the sample table in a bounded scroll region so long recordings do not grow the page indefinitely, while timestamps are rendered in the browser's local timezone.
-- Docker CLI is not installed in this workspace, so the Compose files have been statically validated against the repo structure but not executed end to end here.
+- Docker CLI is not installed in this workspace, so the Compose files can only be statically validated here.
 
 ## Decision Log / Technical Notes
 
@@ -171,18 +180,18 @@ This is the active implementation priority and must stay ahead of websocket work
 - Graphing and comparison continue to use inline SVG so the review workflow stays dependency-light and easy to reason about.
 - Saved-session review and comparison reuse the existing `recording_sessions`, `temperature_samples`, and `thermal_events` tables rather than introducing a second review-specific data model.
 - Frontend API calls default to `/api/v1`, with Vite proxying local development traffic and Nginx proxying Docker traffic, so one frontend build target works across both run modes.
-- Docker Compose uses a named volume for the SQLite database so container recreation does not wipe session history by default.
 - Docker host port defaults were moved off the common `8080`/`8000` pair to `8480`/`8008` to reduce local conflicts during testing.
 - Printer deletion is intentionally blocked once sessions exist so recorded diagnostics cannot be removed accidentally through profile cleanup.
-- Frontend timestamp parsing now treats timezone-naive API datetimes as UTC before formatting them in the user's local browser timezone.
+- Frontend timestamp parsing treats timezone-naive API datetimes as UTC before formatting them in the user's local browser timezone.
+- Portainer redeploy testing showed stack-scoped volume naming was not reliable enough, so the Docker volume name is now pinned explicitly for redeploy stability.
 
 ## Known Risks / Open Questions
 
 - Automated sampling currently depends on the FastAPI process staying alive; a separate worker or websocket-driven path may still be needed later for stronger resilience.
-- Moonraker websocket ingestion is still missing and intentionally lower priority than the session review and Docker slice above.
+- Moonraker websocket ingestion is still missing and intentionally lower priority than the current persistence and session-review slice.
 - Moonraker field availability varies by printer setup; sample normalization will need defensive handling for custom chamber sensors and alternate object names.
 - Printers with recorded sessions cannot be deleted, so long-term cleanup still needs a separate archive or purge flow for old data.
-- Dockerfiles and Compose wiring are in place, but runtime verification still needs to be completed on a machine with Docker installed.
+- Existing Docker-backed data created before the persistence hardening change may live in an old stack-scoped volume and may not carry over automatically once the persistence target is changed.
 - Existing SQLite files created before future schema changes will eventually need a migration path.
 
 ## What Changed From The Original Plan
@@ -196,14 +205,14 @@ This is the active implementation priority and must stay ahead of websocket work
 - Automated recording started with an in-process polling loop rather than a separate worker so the app stays simple and locally runnable.
 - Save/review/comparison builds on the current session/sample/event tables instead of introducing separate comparison storage.
 - Docker support ships as a reverse-proxy frontend plus backend API pair rather than trying to serve the built frontend directly from FastAPI.
-- Websocket ingestion is now explicitly deferred until after the save/discard, saved-session review, comparison, event-marker, and Docker slices are complete.
+- Websocket ingestion is explicitly deferred until after the current persistence, session-review, row-limit, and timezone slice is closed.
 
 ## Next Steps
 
-1. Validate the Docker Compose stack on a machine with Docker installed and capture any fixes required to fully close the current save/review/comparison/Docker slice.
-2. If that runtime validation exposes gaps in the current required slice, fix them before starting websocket work.
-3. Only after the current required slice is closed, start websocket ingestion.
-4. Follow websocket work with the first diagnostic helpers and a deliberate data-retention flow.
+1. Add a visible row-count control for the session sample table and keep scrolling stable during auto-refresh.
+2. Validate the Docker Compose stack on a machine with Docker installed and confirm the pinned Docker volume preserves SQLite data across redeploys.
+3. If that runtime validation exposes more current-slice gaps, fix them before starting websocket work.
+4. Only after the current required slice is closed, start websocket ingestion, then follow with the first diagnostic helpers and a deliberate data-retention flow.
 
 ## Recent Completed Work Log
 
@@ -219,9 +228,10 @@ This is the active implementation priority and must stay ahead of websocket work
 - 2026-03-22: Added Dockerfiles, a root Compose stack, frontend proxy-aware API defaults, and setup documentation for local Docker-based runs.
 - 2026-03-22: Added printer edit/delete flows, backend delete guards, and frontend profile editing controls.
 - 2026-03-22: Fixed frontend timestamp localization to use the browser timezone and bounded the live sample table with scrolling.
+- 2026-03-22: Pinned the Docker SQLite volume name and documented Portainer persistence and migration expectations.
 
 ## Upcoming Commit Targets
 
-- Commit 13: Validate Docker Compose on a machine with Docker installed and close any packaging gaps in the current slice.
-- Commit 14: Moonraker websocket ingestion baseline.
-- Commit 15: First diagnostic tooling slice on top of saved sessions.
+- Commit 15: Add session sample-table row limits with stable scrolling during auto-refresh.
+- Commit 16: Validate Docker persistence on a machine with Docker installed and close any packaging gaps in the current slice.
+- Commit 17: Moonraker websocket ingestion baseline.

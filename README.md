@@ -81,6 +81,35 @@ After startup:
 
 The frontend container serves the built React app with Nginx and proxies `/api/*` requests to the backend container, so no separate frontend API configuration is needed for the default Compose path.
 
+### Persistence
+
+Docker deployments now use an explicit named Docker volume called `tempwatch_data`.
+
+- SQLite path inside the backend container: `/data/tempwatch.db`
+- Default backend database URL in Docker: `sqlite:////data/tempwatch.db`
+- Volume name on the Docker host: `tempwatch_data`
+
+What survives redeploy:
+
+- Rebuilding or redeploying the stack while keeping the `tempwatch_data` volume preserves printer profiles, sessions, samples, and events.
+- Replacing containers does not remove the named volume.
+
+What removes data:
+
+- `docker compose down -v`
+- manually deleting the `tempwatch_data` volume
+- deploying a different persistence target and then removing the old volume before copying the database
+
+Portainer note:
+
+- The compose file now uses an explicit volume name instead of a stack-scoped generated volume name. This is intended to keep the SQLite location stable across Portainer redeploys and stack-source changes.
+
+Migration / recovery note:
+
+- Existing data from deployments created before this persistence hardening may still live in an older stack-scoped volume. That data is not moved automatically into `tempwatch_data`.
+- If the old volume or old container still exists, copy `tempwatch.db` into the new `tempwatch_data` volume before deleting the old deployment.
+- If the previous data only existed in a removed container filesystem, TempWatch cannot recover it.
+
 ### Stop the stack
 
 ```powershell
