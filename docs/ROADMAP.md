@@ -156,7 +156,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Session states support `active`, `completed`, `saved`, and `discarded`.
 - Completed sessions can be saved with notes or discarded from the session detail flow.
 - Saved sessions can be filtered by printer, reviewed with notes/sample counts, and compared two-at-a-time with elapsed or absolute alignment.
-- Session and comparison graphs render persisted lifecycle events as markers using the stored `thermal_events` timeline.
+- Session and comparison graphs render persisted lifecycle events as markers using the stored `thermal_events` timeline, with explicit time-on-x and temperature-on-y axis framing.
 - Active sessions capture normalized Moonraker temperature snapshots into persistent sample rows manually or through the background polling loop.
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
 - If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
@@ -178,6 +178,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Automated recording uses an in-process polling loop because it fits the current single-backend deployment and keeps restart recovery straightforward.
 - Thermal events are reserved for meaningful lifecycle/state transitions rather than every captured sample to avoid unbounded event noise.
 - Graphing and comparison continue to use inline SVG so the review workflow stays dependency-light and easy to reason about.
+- Main temperature traces must keep time on the horizontal axis and temperature on the vertical axis; event markers attach to the time axis so review and comparison match Klipper-style expectations.
 - Saved-session review and comparison reuse the existing `recording_sessions`, `temperature_samples`, and `thermal_events` tables rather than introducing a second review-specific data model.
 - Frontend API calls default to `/api/v1`, with Vite proxying local development traffic and Nginx proxying Docker traffic, so one frontend build target works across both run modes.
 - Docker host port defaults were moved off the common `8080`/`8000` pair to `8480`/`8008` to reduce local conflicts during testing.
@@ -229,6 +230,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - 2026-03-22: Fixed frontend timestamp localization to use the browser timezone and bounded the live sample table with scrolling.
 - 2026-03-22: Pinned the Docker SQLite volume name and documented Portainer persistence and migration expectations.
 - 2026-03-22: Added a selectable 5 / 10 / 25 visible-row limit for the live sample table and locked it to a stable scrolling pane during auto-refresh.
+- 2026-03-22: Clarified the main temperature graph with explicit time and temperature axes so live and comparison traces read in the expected Klipper-style orientation.
 
 ## Upcoming Commit Targets
 

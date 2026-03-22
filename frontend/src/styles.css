@@ -347,6 +347,26 @@ select {
   stroke-width: 1;
 }
 
+.chart-grid-vertical {
+  stroke-dasharray: 4 6;
+}
+
+.chart-axis {
+  stroke: rgba(69, 86, 106, 0.7);
+  stroke-width: 1.5;
+}
+
+.chart-tick {
+  fill: #607080;
+  font-size: 0.78rem;
+}
+
+.chart-axis-label {
+  fill: #45566a;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .chart-line {
   stroke-width: 3;
   stroke-linejoin: round;
