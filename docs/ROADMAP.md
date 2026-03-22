@@ -110,7 +110,7 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - [x] Automated active-session capture implemented.
 - [x] Saved/comparison flows implemented.
 - [x] Docker Compose local run path implemented.
-- [ ] Printer edit/delete UI implemented.
+- [x] Printer edit/delete UI implemented.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
 
@@ -118,8 +118,8 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 - Repository is initialized on `main` and pushed to GitHub.
 - Backend FastAPI app runs from `backend/app` with config, SQLAlchemy setup, automatic table creation, and an in-process recording loop.
-- Frontend React app includes printer management, live session control, a saved sessions browser, and a first comparison workflow.
-- Printer profile CRUD endpoints and session lifecycle endpoints exist.
+- Frontend React app includes printer management with edit/delete actions, live session control, a saved sessions browser, and a first comparison workflow.
+- Printer profile CRUD endpoints, safe printer deletion, and session lifecycle endpoints exist.
 - Session states support `active`, `completed`, `saved`, and `discarded`.
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
 - Active sessions capture normalized Moonraker temperature snapshots into persistent sample rows manually or through the background polling loop.
@@ -152,13 +152,14 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - Saved-session review and comparison reuse the existing `recording_sessions`, `temperature_samples`, and `thermal_events` tables rather than introducing a second review-specific data model.
 - Frontend API calls now default to `/api/v1`, with Vite proxying local development traffic and Nginx proxying Docker traffic, so one frontend build target works across both run modes.
 - Docker Compose uses a named volume for the SQLite database so container recreation does not wipe session history by default.
+- Printer deletion is now intentionally blocked once sessions exist so recorded diagnostics cannot be removed accidentally through profile cleanup.
 
 ## Known Risks / Open Questions
 
 - Automated sampling currently depends on the FastAPI process staying alive; a separate worker or websocket-driven path may still be needed for stronger resilience later.
 - Moonraker websocket ingestion is still missing.
 - Moonraker field availability varies by printer setup; sample normalization will need defensive handling for custom chamber sensors and alternate object names.
-- There is no bulk session management or deletion flow for old saved sessions yet.
+- Printers with recorded sessions cannot be deleted, so long-term cleanup still needs a separate archive or purge flow for old data.
 - Dockerfiles and Compose wiring are in place, but runtime verification still needs to be completed on a machine with Docker installed.
 - Existing SQLite files created before future schema changes will eventually need a migration path.
 
@@ -177,9 +178,9 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Next Steps
 
-1. Add printer edit/delete actions and expose the same control flow in the frontend.
-2. Revisit Moonraker websocket ingestion so active sessions can capture richer state changes and printer-side events.
-3. Start the first diagnostic helpers on top of the saved/comparison data model.
+1. Revisit Moonraker websocket ingestion so active sessions can capture richer state changes and printer-side events.
+2. Start the first diagnostic helpers on top of the saved/comparison data model.
+3. Add a deliberate data-retention flow for old printer/session records now that printer deletion is guarded.
 4. Validate the Compose stack on a machine with Docker installed and capture any packaging fixes that fall out of that run.
 
 ## Recent Completed Work Log
@@ -197,9 +198,10 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 - 2026-03-22: Exposed session sample counts and lifecycle events from the backend for saved-session review and graph markers.
 - 2026-03-22: Added session save/discard actions, a saved sessions browser, comparison overlays, and event markers in the frontend.
 - 2026-03-22: Added Dockerfiles, a root Compose stack, frontend proxy-aware API defaults, and setup documentation for local Docker-based runs.
+- 2026-03-22: Added printer edit/delete flows, backend delete guards, and frontend profile editing controls.
 
 ## Upcoming Commit Targets
 
-- Commit 11: Printer management refinement and richer status feedback.
 - Commit 12: Moonraker websocket ingestion baseline.
 - Commit 13: First diagnostic tooling slice on top of saved sessions.
+- Commit 14: Data-retention and cleanup flow for saved printer/session history.

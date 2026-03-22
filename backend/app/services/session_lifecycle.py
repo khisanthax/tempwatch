@@ -73,6 +73,19 @@ class SessionLifecycleService:
         self.db.refresh(printer)
         return printer
 
+    def delete_printer(self, printer: PrinterProfile) -> None:
+        session_count = self.db.scalar(
+            select(func.count(RecordingSession.id)).where(RecordingSession.printer_id == printer.id)
+        )
+        if session_count:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Printers with recorded sessions cannot be deleted",
+            )
+
+        self.db.delete(printer)
+        self.db.commit()
+
     def list_sessions(self, *, printer_id: int | None = None, status_filter: SessionStatus | None = None) -> list[RecordingSession]:
         self._expire_stale_sessions(printer_id=printer_id)
         stmt: Select[tuple[RecordingSession]] = select(RecordingSession).order_by(RecordingSession.started_at.desc())

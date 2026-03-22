@@ -11,20 +11,30 @@ import type {
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
+async function buildError(response: Response): Promise<Error> {
+  let detail = `Request failed with ${response.status}`;
+
+  try {
+    const payload = (await response.json()) as { detail?: string };
+    if (payload.detail) {
+      detail = payload.detail;
+    }
+  } catch {
+    // Keep the fallback detail when the response body is not JSON.
+  }
+
+  return new Error(detail);
+}
+
+async function ensureSuccess(response: Response): Promise<void> {
+  if (!response.ok) {
+    throw await buildError(response);
+  }
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let detail = `Request failed with ${response.status}`;
-
-    try {
-      const payload = (await response.json()) as { detail?: string };
-      if (payload.detail) {
-        detail = payload.detail;
-      }
-    } catch {
-      // Keep the fallback detail when the response body is not JSON.
-    }
-
-    throw new Error(detail);
+    throw await buildError(response);
   }
 
   return (await response.json()) as T;
@@ -45,6 +55,26 @@ export async function createPrinter(payload: PrinterCreateInput): Promise<Printe
   });
 
   return readJson<PrinterProfile>(response);
+}
+
+export async function updatePrinter(printerId: number, payload: PrinterCreateInput): Promise<PrinterProfile> {
+  const response = await fetch(`${apiBaseUrl}/printers/${printerId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return readJson<PrinterProfile>(response);
+}
+
+export async function deletePrinter(printerId: number): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/printers/${printerId}`, {
+    method: "DELETE",
+  });
+
+  await ensureSuccess(response);
 }
 
 export async function checkPrinterConnection(printerId: number): Promise<PrinterConnectionCheck> {

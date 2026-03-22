@@ -1,6 +1,6 @@
-﻿import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
-import { checkPrinterConnection, createPrinter, fetchPrinters } from "../lib/api";
+import { checkPrinterConnection, createPrinter, deletePrinter, fetchPrinters, updatePrinter } from "../lib/api";
 import type { PrinterConnectionCheck, PrinterCreateInput, PrinterProfile } from "../types/thermal";
 
 const initialForm: PrinterCreateInput = {
@@ -11,11 +11,17 @@ const initialForm: PrinterCreateInput = {
   is_enabled: true,
 };
 
+function sortPrinters(printers: PrinterProfile[]): PrinterProfile[] {
+  return [...printers].sort((left, right) => left.name.localeCompare(right.name));
+}
+
 export function PrintersPage() {
   const [printers, setPrinters] = useState<PrinterProfile[]>([]);
   const [form, setForm] = useState<PrinterCreateInput>(initialForm);
+  const [editingPrinterId, setEditingPrinterId] = useState<number | null>(null);
   const [checks, setChecks] = useState<Record<number, PrinterConnectionCheck>>({});
   const [isChecking, setIsChecking] = useState<Record<number, boolean>>({});
+  const [deletingPrinterId, setDeletingPrinterId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,13 +30,18 @@ export function PrintersPage() {
     void loadPrinters();
   }, []);
 
+  function resetForm() {
+    setForm(initialForm);
+    setEditingPrinterId(null);
+  }
+
   async function loadPrinters() {
     setIsLoading(true);
     setError(null);
 
     try {
       const data = await fetchPrinters();
-      setPrinters(data);
+      setPrinters(sortPrinters(data));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load printers");
     } finally {
@@ -43,21 +54,72 @@ export function PrintersPage() {
     setIsSubmitting(true);
     setError(null);
 
-    try {
-      const created = await createPrinter({
-        ...form,
-        api_key: form.api_key?.trim() || null,
-        notes: form.notes?.trim() || null,
-        base_url: form.base_url.trim(),
-        name: form.name.trim(),
-      });
+    const payload: PrinterCreateInput = {
+      ...form,
+      api_key: form.api_key?.trim() || null,
+      notes: form.notes?.trim() || null,
+      base_url: form.base_url.trim(),
+      name: form.name.trim(),
+    };
 
-      setPrinters((current) => [...current, created].sort((left, right) => left.name.localeCompare(right.name)));
-      setForm(initialForm);
+    try {
+      if (editingPrinterId === null) {
+        const created = await createPrinter(payload);
+        setPrinters((current) => sortPrinters([...current, created]));
+      } else {
+        const updated = await updatePrinter(editingPrinterId, payload);
+        setPrinters((current) => sortPrinters(current.map((printer) => (printer.id === updated.id ? updated : printer))));
+        setChecks((current) => {
+          const next = { ...current };
+          delete next[updated.id];
+          return next;
+        });
+      }
+
+      resetForm();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to save printer");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function handleEdit(printer: PrinterProfile) {
+    setEditingPrinterId(printer.id);
+    setForm({
+      name: printer.name,
+      base_url: printer.base_url,
+      api_key: printer.api_key ?? "",
+      notes: printer.notes ?? "",
+      is_enabled: printer.is_enabled,
+    });
+    setError(null);
+  }
+
+  async function handleDelete(printer: PrinterProfile) {
+    const confirmed = window.confirm(`Delete printer profile "${printer.name}"? This is blocked if sessions already exist.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingPrinterId(printer.id);
+    setError(null);
+
+    try {
+      await deletePrinter(printer.id);
+      setPrinters((current) => current.filter((candidate) => candidate.id !== printer.id));
+      setChecks((current) => {
+        const next = { ...current };
+        delete next[printer.id];
+        return next;
+      });
+      if (editingPrinterId === printer.id) {
+        resetForm();
+      }
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete printer");
+    } finally {
+      setDeletingPrinterId(null);
     }
   }
 
@@ -92,8 +154,10 @@ export function PrintersPage() {
       <div className="printer-layout">
         <form className="panel stack-md" onSubmit={handleSubmit}>
           <div>
-            <h3>Add printer</h3>
-            <p className="muted">Profiles are local to this TempWatch instance.</p>
+            <h3>{editingPrinterId === null ? "Add printer" : "Edit printer"}</h3>
+            <p className="muted">
+              {editingPrinterId === null ? "Profiles are local to this TempWatch instance." : "Update the Moonraker endpoint or metadata for this printer."}
+            </p>
           </div>
 
           <label className="field">
@@ -144,9 +208,16 @@ export function PrintersPage() {
             <span>Enable this printer for recording sessions</span>
           </label>
 
-          <button className="primary-button" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save printer"}
-          </button>
+          <div className="card-actions">
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : editingPrinterId === null ? "Save printer" : "Update printer"}
+            </button>
+            {editingPrinterId !== null ? (
+              <button className="ghost-button" type="button" onClick={resetForm} disabled={isSubmitting}>
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
         </form>
 
         <div className="stack-md">
@@ -164,6 +235,8 @@ export function PrintersPage() {
           {!isLoading && printers.length > 0
             ? printers.map((printer) => {
                 const check = checks[printer.id];
+                const isDeleting = deletingPrinterId === printer.id;
+                const isEditing = editingPrinterId === printer.id;
                 return (
                   <article className="panel stack-sm" key={printer.id}>
                     <div className="printer-card-header">
@@ -183,9 +256,15 @@ export function PrintersPage() {
                         className="ghost-button"
                         type="button"
                         onClick={() => void handleConnectionCheck(printer.id)}
-                        disabled={Boolean(isChecking[printer.id])}
+                        disabled={Boolean(isChecking[printer.id]) || isDeleting}
                       >
                         {isChecking[printer.id] ? "Checking..." : "Check connection"}
+                      </button>
+                      <button className="ghost-button" type="button" onClick={() => handleEdit(printer)} disabled={isDeleting}>
+                        {isEditing ? "Editing" : "Edit"}
+                      </button>
+                      <button className="ghost-button" type="button" onClick={() => void handleDelete(printer)} disabled={isDeleting}>
+                        {isDeleting ? "Deleting..." : "Delete"}
                       </button>
                     </div>
 

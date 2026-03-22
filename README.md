@@ -17,7 +17,7 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 
 ## Features In Place
 
-- Multiple printer profiles with Moonraker URL storage and connection checks
+- Multiple printer profiles with add/edit/delete management, Moonraker URL storage, and connection checks
 - Manual session start/stop with one active session per printer
 - Automatic 4-day max session enforcement
 - Persistent temperature samples and lifecycle thermal events
@@ -26,6 +26,7 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - Save or discard flow for completed sessions
 - Saved sessions browser with printer filtering and sample counts
 - Saved-session comparison with elapsed-time or absolute-time alignment
+- Printer deletion guard that prevents removing profiles once recorded sessions exist
 
 ## Local Development
 

@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -28,6 +28,14 @@ def update_printer(printer_id: int, payload: PrinterUpdate, db: Session = Depend
     service = SessionLifecycleService(db)
     printer = service.get_printer(printer_id)
     return service.update_printer(printer, **payload.model_dump(exclude_unset=True))
+
+
+@router.delete("/{printer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_printer(printer_id: int, db: Session = Depends(get_db)) -> Response:
+    service = SessionLifecycleService(db)
+    printer = service.get_printer(printer_id)
+    service.delete_printer(printer)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{printer_id}/connection-check", response_model=PrinterConnectionCheckRead)
