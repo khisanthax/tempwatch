@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { getTimestampMs } from "../lib/time";
 import type { ComparisonAlignment, TemperatureSample, ThermalEvent } from "../types/thermal";
 
 const CHART_WIDTH = 720;
@@ -76,7 +77,9 @@ function buildChartData(primary: Series, secondary: Series | undefined, alignmen
   const allSamples = [...plottedPrimary, ...plottedSecondary];
   const primaryStart = primary.samples[0]?.captured_at;
   const secondaryStart = secondary?.samples[0]?.captured_at;
-  const normalizedTimes = allSamples.map((sample) => normalizeTime(sample.captured_at, alignment, primaryStart, secondaryStart, secondary?.samples.includes(sample) ?? false));
+  const normalizedTimes = allSamples.map((sample) =>
+    normalizeTime(sample.captured_at, alignment, primaryStart, secondaryStart, secondary?.samples.includes(sample) ?? false),
+  );
   const minX = Math.min(...normalizedTimes);
   const maxX = Math.max(...normalizedTimes);
   const values = allSamples.flatMap((sample) => [sample.nozzle_actual, sample.bed_actual].filter((value): value is number => value !== null));
@@ -150,11 +153,11 @@ function normalizeTime(
   secondaryStart?: string,
   secondarySeries = false,
 ) {
-  const raw = new Date(value).getTime();
+  const raw = getTimestampMs(value);
   if (alignment === "absolute") {
     return raw;
   }
 
   const base = secondarySeries ? secondaryStart : primaryStart;
-  return raw - new Date(base ?? value).getTime();
+  return raw - getTimestampMs(base ?? value);
 }

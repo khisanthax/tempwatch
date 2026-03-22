@@ -2,6 +2,7 @@ import { Dispatch, SetStateAction, useEffect, useState } from "react";
 
 import { TemperatureChart } from "../components/TemperatureChart";
 import { fetchPrinters, fetchSamples, fetchSessionEvents, fetchSessions } from "../lib/api";
+import { formatLocalDateTime, getTimestampMs } from "../lib/time";
 import type { ComparisonAlignment, PrinterProfile, SessionRecord, TemperatureSample, ThermalEvent } from "../types/thermal";
 
 export function SavedSessionsPage() {
@@ -127,7 +128,9 @@ export function SavedSessionsPage() {
                   </div>
                   <span className="status-pill inactive">saved</span>
                 </div>
-                <p className="muted">{new Date(session.started_at).toLocaleString()} to {session.ended_at ? new Date(session.ended_at).toLocaleString() : "in progress"}</p>
+                <p className="muted">
+                  {formatLocalDateTime(session.started_at)} to {session.ended_at ? formatLocalDateTime(session.ended_at) : "in progress"}
+                </p>
                 <p className="muted">Duration: {formatDuration(session.started_at, session.ended_at)}</p>
                 <p className="muted">Samples: {session.sample_count}</p>
                 <p>{session.save_notes || "No notes recorded."}</p>
@@ -203,8 +206,8 @@ export function SavedSessionsPage() {
 }
 
 function formatDuration(startedAt: string, endedAt: string | null): string {
-  const endMs = endedAt ? new Date(endedAt).getTime() : Date.now();
-  const totalSeconds = Math.max(0, Math.floor((endMs - new Date(startedAt).getTime()) / 1000));
+  const endMs = endedAt ? getTimestampMs(endedAt) : Date.now();
+  const totalSeconds = Math.max(0, Math.floor((endMs - getTimestampMs(startedAt)) / 1000));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;

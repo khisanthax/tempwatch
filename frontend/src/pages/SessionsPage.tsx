@@ -1,7 +1,18 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { TemperatureChart } from "../components/TemperatureChart";
-import { captureSample, discardSession, fetchPrinters, fetchSamples, fetchSessionEvents, fetchSessions, saveSession, startSession, stopSession } from "../lib/api";
+import {
+  captureSample,
+  discardSession,
+  fetchPrinters,
+  fetchSamples,
+  fetchSessionEvents,
+  fetchSessions,
+  saveSession,
+  startSession,
+  stopSession,
+} from "../lib/api";
+import { formatLocalDateTime, formatLocalTime, getTimestampMs } from "../lib/time";
 import type { PrinterProfile, SessionRecord, TemperatureSample, ThermalEvent } from "../types/thermal";
 
 const ACTIVE_REFRESH_MS = 2000;
@@ -102,7 +113,11 @@ export function SessionsPage() {
 
   async function refreshActiveSession(sessionId: number) {
     try {
-      const [sessionData, sampleData, eventData] = await Promise.all([fetchSessions(), fetchSamples(sessionId), fetchSessionEvents(sessionId)]);
+      const [sessionData, sampleData, eventData] = await Promise.all([
+        fetchSessions(),
+        fetchSamples(sessionId),
+        fetchSessionEvents(sessionId),
+      ]);
       setSessions(sessionData);
       setSamples(sampleData);
       setEvents(eventData);
@@ -143,7 +158,9 @@ export function SessionsPage() {
     try {
       const result = await captureSample(sessionId);
       setSessions((current) =>
-        current.map((session) => (session.id === result.session.id ? result.session : session)).sort((left, right) => right.started_at.localeCompare(left.started_at)),
+        current
+          .map((session) => (session.id === result.session.id ? result.session : session))
+          .sort((left, right) => right.started_at.localeCompare(left.started_at)),
       );
       if (selectedSessionId === sessionId) {
         setSamples((current) => [...current, result.sample].sort((left, right) => left.captured_at.localeCompare(right.captured_at)));
@@ -233,10 +250,7 @@ export function SessionsPage() {
 
             <label className="field">
               <span>Printer</span>
-              <select
-                value={selectedPrinterId}
-                onChange={(event) => setSelectedPrinterId(event.target.value ? Number(event.target.value) : "")}
-              >
+              <select value={selectedPrinterId} onChange={(event) => setSelectedPrinterId(event.target.value ? Number(event.target.value) : "") }>
                 <option value="">Select a printer</option>
                 {enabledPrinters.map((printer) => (
                   <option key={printer.id} value={printer.id}>
@@ -279,7 +293,7 @@ export function SessionsPage() {
                       </div>
                       <span className={`status-pill ${session.status === "active" ? "active" : "inactive"}`}>{session.status}</span>
                     </div>
-                    <p className="muted">Started: {new Date(session.started_at).toLocaleString()}</p>
+                    <p className="muted">Started: {formatLocalDateTime(session.started_at)}</p>
                     <p className="muted">Samples: {session.sample_count}</p>
                     <div className="card-actions">
                       {session.status === "active" ? (
@@ -330,6 +344,8 @@ export function SessionsPage() {
                   <div>
                     <strong>{selectedSession.label || "Untitled session"}</strong>
                     <p className="muted">{printerName(selectedSession.printer_id)}</p>
+                    <p className="muted">Started: {formatLocalDateTime(selectedSession.started_at)}</p>
+                    <p className="muted">Ended: {selectedSession.ended_at ? formatLocalDateTime(selectedSession.ended_at) : "In progress"}</p>
                   </div>
                   <span className={`status-pill ${selectedSession.status === "active" ? "active" : "inactive"}`}>{selectedSession.status}</span>
                 </div>
@@ -371,10 +387,20 @@ export function SessionsPage() {
                       />
                     </label>
                     <div className="card-actions">
-                      <button className="primary-button" type="button" onClick={() => void handleSaveSession(selectedSession.id)} disabled={actionSessionId === selectedSession.id}>
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={() => void handleSaveSession(selectedSession.id)}
+                        disabled={actionSessionId === selectedSession.id}
+                      >
                         {actionSessionId === selectedSession.id ? "Working..." : "Save session"}
                       </button>
-                      <button className="ghost-button" type="button" onClick={() => void handleDiscardSession(selectedSession.id)} disabled={actionSessionId === selectedSession.id}>
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => void handleDiscardSession(selectedSession.id)}
+                        disabled={actionSessionId === selectedSession.id}
+                      >
                         Discard session
                       </button>
                     </div>
@@ -401,15 +427,17 @@ export function SessionsPage() {
                       <span>Fan</span>
                       <span>State</span>
                     </div>
-                    {samples.map((sample) => (
-                      <div className="sample-table-row" key={sample.id}>
-                        <span>{new Date(sample.captured_at).toLocaleTimeString()}</span>
-                        <span>{formatTemperature(sample.nozzle_actual, sample.nozzle_target)}</span>
-                        <span>{formatTemperature(sample.bed_actual, sample.bed_target)}</span>
-                        <span>{formatPercent(sample.fan_speed)}</span>
-                        <span>{sample.print_state ?? "unknown"}</span>
-                      </div>
-                    ))}
+                    <div className="sample-table-body">
+                      {samples.map((sample) => (
+                        <div className="sample-table-row" key={sample.id}>
+                          <span>{formatLocalTime(sample.captured_at)}</span>
+                          <span>{formatTemperature(sample.nozzle_actual, sample.nozzle_target)}</span>
+                          <span>{formatTemperature(sample.bed_actual, sample.bed_target)}</span>
+                          <span>{formatPercent(sample.fan_speed)}</span>
+                          <span>{sample.print_state ?? "unknown"}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </>
@@ -450,8 +478,8 @@ function formatPercent(value: number | null | undefined): string {
 }
 
 function formatElapsed(startedAt: string, endedAt: string | null, now: number): string {
-  const startMs = new Date(startedAt).getTime();
-  const endMs = endedAt ? new Date(endedAt).getTime() : now;
+  const startMs = getTimestampMs(startedAt);
+  const endMs = endedAt ? getTimestampMs(endedAt) : now;
   const totalSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);

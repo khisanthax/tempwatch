@@ -142,7 +142,7 @@ This is the active implementation priority and must stay ahead of websocket work
 
 - Repository is initialized on `main` and pushed to GitHub.
 - Backend FastAPI app runs from `backend/app` with config, SQLAlchemy setup, automatic table creation, and an in-process recording loop.
-- Frontend React app includes printer management with edit/delete actions, live session control, a saved sessions browser, and a first comparison workflow.
+- Frontend React app includes printer management with edit/delete actions, live session control, a saved sessions browser, and a first comparison workflow with local-browser timestamp rendering.
 - Printer profile CRUD endpoints, safe printer deletion, and session lifecycle endpoints exist.
 - Session states support `active`, `completed`, `saved`, and `discarded`.
 - Completed sessions can be saved with notes or discarded from the session detail flow.
@@ -153,6 +153,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
 - Docker packaging includes a backend image, an Nginx-served frontend image, and a root `docker-compose.yml` with named-volume SQLite persistence using host defaults `8480` for the frontend and `8008` for the backend API.
 - Frontend API configuration defaults to relative `/api/v1` calls so the same build works for Vite development and the Nginx reverse-proxy Docker path.
+- Session detail now keeps the sample table in a bounded scroll region so long recordings do not grow the page indefinitely, while timestamps are rendered in the browser's local timezone.
 - Docker CLI is not installed in this workspace, so the Compose files have been statically validated against the repo structure but not executed end to end here.
 
 ## Decision Log / Technical Notes
@@ -173,6 +174,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Docker Compose uses a named volume for the SQLite database so container recreation does not wipe session history by default.
 - Docker host port defaults were moved off the common `8080`/`8000` pair to `8480`/`8008` to reduce local conflicts during testing.
 - Printer deletion is intentionally blocked once sessions exist so recorded diagnostics cannot be removed accidentally through profile cleanup.
+- Frontend timestamp parsing now treats timezone-naive API datetimes as UTC before formatting them in the user's local browser timezone.
 
 ## Known Risks / Open Questions
 
@@ -216,9 +218,10 @@ This is the active implementation priority and must stay ahead of websocket work
 - 2026-03-22: Added save/discard actions, a saved sessions browser, comparison overlays, and event markers.
 - 2026-03-22: Added Dockerfiles, a root Compose stack, frontend proxy-aware API defaults, and setup documentation for local Docker-based runs.
 - 2026-03-22: Added printer edit/delete flows, backend delete guards, and frontend profile editing controls.
+- 2026-03-22: Fixed frontend timestamp localization to use the browser timezone and bounded the live sample table with scrolling.
 
 ## Upcoming Commit Targets
 
-- Commit 12: Close any remaining gaps in the save/discard, saved-session review, comparison, marker, and Docker slice.
-- Commit 13: Moonraker websocket ingestion baseline.
-- Commit 14: First diagnostic tooling slice on top of saved sessions.
+- Commit 13: Validate Docker Compose on a machine with Docker installed and close any packaging gaps in the current slice.
+- Commit 14: Moonraker websocket ingestion baseline.
+- Commit 15: First diagnostic tooling slice on top of saved sessions.
