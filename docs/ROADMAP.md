@@ -165,6 +165,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Frontend API configuration defaults to relative `/api/v1` calls so the same build works for Vite development and the Nginx reverse-proxy Docker path.
 - API datetimes are now serialized as UTC with explicit `Z` suffixes, and the frontend currently renders all user-facing times in the deterministic `America/New_York` deployment timezone while Moonraker-host timezone discovery remains deferred.
 - Docker CLI is not installed in this workspace, so the Compose files can only be statically validated here.
+- Built frontend output has been verified to contain the updated horizontal navigation, axis-labelled chart, and deterministic Eastern-time formatting, but live Docker/Portainer rendering still requires verification on the deployment host.
 
 ## Decision Log / Technical Notes
 
@@ -212,9 +213,9 @@ This is the active implementation priority and must stay ahead of websocket work
 
 ## Next Steps
 
-1. Re-verify sample-table scrolling and desktop/mobile layout behavior against real browser runtime, then close any remaining UI gaps in the current slice.
+1. Validate the live Docker / Portainer deployment after a rebuild and confirm the updated frontend shell, chart labels, and timestamp fallback are actually rendered in the browser.
 2. Validate the Docker Compose / Portainer persistence path on a machine with Docker installed and confirm the pinned volume survives redeploys.
-3. If current-slice runtime validation exposes more gaps, fix them before starting websocket work.
+3. If live runtime validation exposes more gaps, fix them before starting websocket work.
 4. Only after the current required slice is closed, start websocket ingestion, then follow with the first diagnostic helpers and a deliberate data-retention flow.
 
 ## Recent Completed Work Log
@@ -236,6 +237,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - 2026-03-22: Clarified the main temperature graph with explicit time and temperature axes so live and comparison traces read in the expected Klipper-style orientation.
 - 2026-03-22: Reworked the sessions review layout so Start Session and Recent Sessions sit side by side on wider screens and Session Detail remains below as the primary review surface.
 - 2026-03-22: Switched user-facing timestamp rendering to a deterministic Eastern Time fallback and added explicit UTC `Z` serialization for API datetime fields.
+- 2026-03-22: Verified the built frontend bundle contains the updated navigation, chart, and timestamp logic, then hardened Docker frontend serving with no-store HTML headers and `pull_policy: build` to reduce stale Portainer deployments.
 
 ## Upcoming Commit Targets
 

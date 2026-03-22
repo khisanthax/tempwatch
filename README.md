@@ -88,6 +88,12 @@ After startup:
 
 The frontend container serves the built React app with Nginx and proxies `/api/*` requests to the backend container, so no separate frontend API configuration is needed for the default Compose path.
 
+Frontend refresh note:
+
+- The Nginx container now serves `index.html` with `no-store` cache headers so redeploys do not leave the browser on an old app shell.
+- Built assets under `/assets/` remain cacheable and content-hashed, so a rebuilt frontend gets a new asset filename and the browser can safely fetch the new bundle.
+- The Compose file now includes `pull_policy: build` for both services so Git-based Portainer redeploys rebuild from the checked-out source instead of reusing a stale local image when supported by the host.
+
 ### Persistence
 
 Docker deployments now use an explicit named Docker volume called `tempwatch_data`.
