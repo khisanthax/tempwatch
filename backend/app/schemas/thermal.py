@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -65,6 +65,7 @@ class SessionRead(BaseModel):
     status: SessionStatus
     stop_reason: str | None
     save_notes: str | None
+    sample_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -85,6 +86,19 @@ class TemperatureSampleRead(BaseModel):
     print_state: str | None
     source: str
     raw_payload: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ThermalEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    session_id: int
+    event_type: str
+    message: str
+    event_time: datetime
+    metadata_json: str | None
     created_at: datetime
     updated_at: datetime
 

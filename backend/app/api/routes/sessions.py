@@ -1,9 +1,9 @@
-﻿from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import SessionStatus
-from app.schemas.thermal import SessionCaptureResponse, SessionDispositionRequest, SessionRead, SessionStartRequest, SessionStopRequest, TemperatureSampleRead
+from app.schemas.thermal import SessionCaptureResponse, SessionDispositionRequest, SessionRead, SessionStartRequest, SessionStopRequest, TemperatureSampleRead, ThermalEventRead
 from app.services.session_lifecycle import SessionLifecycleService
 
 router = APIRouter(tags=["sessions"])
@@ -16,6 +16,11 @@ def list_sessions(
     db: Session = Depends(get_db),
 ) -> list[SessionRead]:
     return SessionLifecycleService(db).list_sessions(printer_id=printer_id, status_filter=status_filter)
+
+
+@router.get("/sessions/{session_id}", response_model=SessionRead)
+def get_session(session_id: int, db: Session = Depends(get_db)) -> SessionRead:
+    return SessionLifecycleService(db).get_session(session_id)
 
 
 @router.post("/printers/{printer_id}/sessions/start", response_model=SessionRead, status_code=status.HTTP_201_CREATED)
@@ -51,6 +56,13 @@ def list_samples(session_id: int, db: Session = Depends(get_db)) -> list[Tempera
     service = SessionLifecycleService(db)
     session = service.get_session(session_id)
     return service.list_samples(session)
+
+
+@router.get("/sessions/{session_id}/events", response_model=list[ThermalEventRead])
+def list_events(session_id: int, db: Session = Depends(get_db)) -> list[ThermalEventRead]:
+    service = SessionLifecycleService(db)
+    session = service.get_session(session_id)
+    return service.list_events(session)
 
 
 @router.post("/sessions/{session_id}/samples/capture", response_model=SessionCaptureResponse, status_code=status.HTTP_201_CREATED)

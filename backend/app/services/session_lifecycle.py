@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, desc, or_, select
+from sqlalchemy import Select, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -80,7 +80,9 @@ class SessionLifecycleService:
             stmt = stmt.where(RecordingSession.printer_id == printer_id)
         if status_filter is not None:
             stmt = stmt.where(RecordingSession.status == status_filter)
-        return list(self.db.scalars(stmt))
+        sessions = list(self.db.scalars(stmt))
+        self._attach_sample_counts(sessions)
+        return sessions
 
     def list_active_sessions(self) -> list[RecordingSession]:
         self._expire_stale_sessions()
@@ -89,7 +91,9 @@ class SessionLifecycleService:
             .where(RecordingSession.status == SessionStatus.ACTIVE)
             .order_by(RecordingSession.started_at.asc())
         )
-        return list(self.db.scalars(stmt))
+        sessions = list(self.db.scalars(stmt))
+        self._attach_sample_counts(sessions)
+        return sessions
 
     def start_session(self, *, printer: PrinterProfile, label: str | None = None) -> RecordingSession:
         if not printer.is_enabled:
@@ -113,6 +117,7 @@ class SessionLifecycleService:
         self._record_event(session, event_type="session-started", message="Recording session started")
         self.db.commit()
         self.db.refresh(session)
+        session.sample_count = 0
         return session
 
     def get_session(self, session_id: int) -> RecordingSession:
@@ -124,6 +129,7 @@ class SessionLifecycleService:
             self.db.commit()
             self.db.refresh(session)
 
+        self._attach_sample_counts([session])
         return session
 
     def stop_session(self, session: RecordingSession, *, stop_reason: str | None = None) -> RecordingSession:
@@ -143,6 +149,7 @@ class SessionLifecycleService:
         self._record_event(session, event_type="session-stopped", message=f"Recording session stopped ({session.stop_reason or 'manual-stop'})")
         self.db.commit()
         self.db.refresh(session)
+        self._attach_sample_counts([session])
         return session
 
     def save_session(self, session: RecordingSession, *, save_notes: str | None = None) -> RecordingSession:
@@ -155,6 +162,7 @@ class SessionLifecycleService:
         self._record_event(session, event_type="session-saved", message="Recording session saved")
         self.db.commit()
         self.db.refresh(session)
+        self._attach_sample_counts([session])
         return session
 
     def discard_session(self, session: RecordingSession) -> RecordingSession:
@@ -166,6 +174,7 @@ class SessionLifecycleService:
         self._record_event(session, event_type="session-discarded", message="Recording session discarded")
         self.db.commit()
         self.db.refresh(session)
+        self._attach_sample_counts([session])
         return session
 
     def list_samples(self, session: RecordingSession) -> list[TemperatureSample]:
@@ -176,11 +185,20 @@ class SessionLifecycleService:
         )
         return list(self.db.scalars(stmt))
 
+    def list_events(self, session: RecordingSession) -> list[ThermalEvent]:
+        stmt: Select[tuple[ThermalEvent]] = (
+            select(ThermalEvent)
+            .where(ThermalEvent.session_id == session.id)
+            .order_by(ThermalEvent.event_time.asc())
+        )
+        return list(self.db.scalars(stmt))
+
     def capture_sample(self, session: RecordingSession) -> dict[str, RecordingSession | TemperatureSample]:
         sample = self._capture_sample_record(session)
         self.db.commit()
         self.db.refresh(sample)
         self.db.refresh(session)
+        self._attach_sample_counts([session])
         return {"session": session, "sample": sample}
 
     def capture_sample_if_due(self, session: RecordingSession) -> TemperatureSample | None:
@@ -222,6 +240,20 @@ class SessionLifecycleService:
             .limit(1)
         )
         return self.db.scalar(stmt)
+
+    def _attach_sample_counts(self, sessions: list[RecordingSession]) -> None:
+        if not sessions:
+            return
+
+        session_ids = [session.id for session in sessions]
+        counts_stmt = (
+            select(TemperatureSample.session_id, func.count(TemperatureSample.id))
+            .where(TemperatureSample.session_id.in_(session_ids))
+            .group_by(TemperatureSample.session_id)
+        )
+        counts = {session_id: count for session_id, count in self.db.execute(counts_stmt).all()}
+        for session in sessions:
+            session.sample_count = counts.get(session.id, 0)
 
     def _ensure_printer_uniqueness(self, *, name: str, base_url: str, exclude_id: int | None = None) -> None:
         stmt = select(PrinterProfile).where(or_(PrinterProfile.name == name, PrinterProfile.base_url == base_url))
