@@ -75,9 +75,9 @@ docker compose up --build
 
 After startup:
 
-- Frontend: [http://127.0.0.1:8080](http://127.0.0.1:8080)
-- Backend API: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- Backend docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- Frontend: [http://127.0.0.1:8480](http://127.0.0.1:8480)
+- Backend API: [http://127.0.0.1:8008](http://127.0.0.1:8008)
+- Backend docs: [http://127.0.0.1:8008/docs](http://127.0.0.1:8008/docs)
 
 The frontend container serves the built React app with Nginx and proxies `/api/*` requests to the backend container, so no separate frontend API configuration is needed for the default Compose path.
 

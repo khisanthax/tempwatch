@@ -151,7 +151,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Active sessions capture normalized Moonraker temperature snapshots into persistent sample rows manually or through the background polling loop.
 - Stale active sessions are automatically completed once they exceed the 4-day cap.
 - If the backend restarts while a session is still active, the session remains active in SQLite and automated sampling resumes when the backend comes back up.
-- Docker packaging includes a backend image, an Nginx-served frontend image, and a root `docker-compose.yml` with named-volume SQLite persistence.
+- Docker packaging includes a backend image, an Nginx-served frontend image, and a root `docker-compose.yml` with named-volume SQLite persistence using host defaults `8480` for the frontend and `8008` for the backend API.
 - Frontend API configuration defaults to relative `/api/v1` calls so the same build works for Vite development and the Nginx reverse-proxy Docker path.
 - Docker CLI is not installed in this workspace, so the Compose files have been statically validated against the repo structure but not executed end to end here.
 
@@ -171,6 +171,7 @@ This is the active implementation priority and must stay ahead of websocket work
 - Saved-session review and comparison reuse the existing `recording_sessions`, `temperature_samples`, and `thermal_events` tables rather than introducing a second review-specific data model.
 - Frontend API calls default to `/api/v1`, with Vite proxying local development traffic and Nginx proxying Docker traffic, so one frontend build target works across both run modes.
 - Docker Compose uses a named volume for the SQLite database so container recreation does not wipe session history by default.
+- Docker host port defaults were moved off the common `8080`/`8000` pair to `8480`/`8008` to reduce local conflicts during testing.
 - Printer deletion is intentionally blocked once sessions exist so recorded diagnostics cannot be removed accidentally through profile cleanup.
 
 ## Known Risks / Open Questions

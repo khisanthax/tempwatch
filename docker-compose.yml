@@ -12,7 +12,7 @@ services:
       TEMPWATCH_SAMPLE_INTERVAL_SECONDS: ${TEMPWATCH_SAMPLE_INTERVAL_SECONDS:-1.0}
       TEMPWATCH_RECORDING_LOOP_INTERVAL_SECONDS: ${TEMPWATCH_RECORDING_LOOP_INTERVAL_SECONDS:-1.0}
     ports:
-      - "${TEMPWATCH_API_EXTERNAL_PORT:-8000}:8000"
+      - "${TEMPWATCH_API_EXTERNAL_PORT:-8008}:8000"
     volumes:
       - tempwatch_data:/data
 
@@ -23,7 +23,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "${TEMPWATCH_FRONTEND_PORT:-8080}:80"
+      - "${TEMPWATCH_FRONTEND_PORT:-8480}:80"
 
 volumes:
   tempwatch_data:
