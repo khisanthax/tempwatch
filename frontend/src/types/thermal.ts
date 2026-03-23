@@ -1,4 +1,5 @@
 export type WatchRetentionHours = 4 | 8 | 12 | 24;
+export type PreservedWatchCaptureStatus = "collecting" | "finalized";
 
 export interface BackgroundWatchConfig {
   id: number;
@@ -92,6 +93,11 @@ export interface BackgroundWatchSample extends TemperatureTraceSample {
   printer_id: number;
 }
 
+export interface PreservedWatchSample extends TemperatureTraceSample {
+  capture_id: number;
+  source_watch_sample_id: number | null;
+}
+
 export interface ThermalEvent {
   id: number;
   session_id: number;
@@ -99,6 +105,34 @@ export interface ThermalEvent {
   message: string;
   event_time: string;
   metadata_json: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PreservedWatchTriggerEvent {
+  id: number;
+  capture_id: number;
+  event_time: string;
+  trigger_rule: string;
+  trigger_reason: string;
+  metadata_json: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PreservedWatchCapture {
+  id: number;
+  printer_id: number;
+  status: PreservedWatchCaptureStatus;
+  source: string;
+  trigger_rule: string;
+  trigger_reason: string;
+  trigger_time: string;
+  capture_start_at: string;
+  capture_end_at: string;
+  finalized_at: string | null;
+  sample_count: number;
+  trigger_count: number;
   created_at: string;
   updated_at: string;
 }

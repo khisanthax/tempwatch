@@ -557,3 +557,34 @@ select {
     align-items: stretch;
   }
 }
+.capture-card {
+  width: 100%;
+  border: 1px solid transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.capture-card.selected {
+  border-color: #21496f;
+  background: #eef5fb;
+}
+
+.capture-label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #21496f;
+}
+
+.trigger-event {
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: rgba(236, 243, 250, 0.92);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.trigger-event p {
+  margin: 0;
+}

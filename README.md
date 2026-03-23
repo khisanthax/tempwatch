@@ -35,6 +35,13 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - Retention is timestamp-based, not row-count based, and stale watch rows are pruned continuously by the backend loop
 - Current rolling watch windows can be promoted into a saved manual session from the Watch page
 
+### Event-Triggered Preservation
+
+- Triggered automatically from Background Watch when a rule-based thermal anomaly is detected
+- Preserves a bounded watch window so the data survives normal rolling watch pruning
+- Stored separately from manual sessions and separately from rolling watch rows
+- Reviewable later from the Preserved page with trigger metadata and graph markers
+
 ## Features In Place
 
 - Multiple printer profiles with add/edit/delete management, Moonraker URL storage, connection checks, and per-printer Background Watch settings
@@ -46,6 +53,7 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - Background polling for active sessions and enabled watch-mode printers while the backend is running
 - Live session detail view with inline SVG graph and event markers
 - Dedicated watch-history view with recent rolling samples, auto-refresh, and watch-window promotion into saved sessions
+- Preserved-capture browser for auto-frozen Background Watch faults with trigger reason, printer, time, and graph review
 - Save or discard flow for completed sessions
 - Saved sessions browser with printer filtering and sample counts
 - Saved-session comparison with elapsed-time or absolute-time alignment
@@ -57,6 +65,23 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - The current UI display fallback is fixed to `America/New_York` so the app does not depend on browser timezone drift.
 - Moonraker / Klipper host-timezone discovery is not implemented yet, so all user-facing times and absolute-time chart ticks currently render in Eastern Time.
 - API responses serialize UTC timestamps with an explicit `Z` suffix before the frontend formats them for display.
+
+## Preservation Triggers
+
+TempWatch keeps the first implementation intentionally explicit and rule-based. The current trigger set is:
+
+- `watch-nozzle-drop`: nozzle actual temperature drops by `15C` or more between consecutive watch samples while a nozzle target is still set
+- `watch-bed-drop`: bed actual temperature drops by `8C` or more between consecutive watch samples while a bed target is still set
+- `watch-nozzle-gap`: nozzle actual temperature stays at least `15C` below target for `3` consecutive watch samples
+- `watch-bed-gap`: bed actual temperature stays at least `8C` below target for `3` consecutive watch samples
+
+Current preserved window behavior:
+
+- preserve up to `30 minutes` before the first trigger
+- continue collecting up to `30 minutes` after the most recent trigger in that preserved capture
+- keep the preserved copy even after the original rolling watch samples are pruned
+
+This first version does not use scoring, ML, or layered heuristics. Thresholds are hardcoded in the backend so they remain easy to inspect and adjust in code.
 
 ## Local Development
 
@@ -163,6 +188,7 @@ docker compose down -v
 - Non-Docker local runs store SQLite data at `./tempwatch.db` by default, relative to the repo root when you launch `uvicorn` from this workspace.
 - Docker Compose stores SQLite data in the named Docker volume `tempwatch_data` at `/data/tempwatch.db` inside the backend container.
 - Manual sessions and background watch history use separate tables so passive rolling capture does not blur the manual diagnostic session model.
+- Auto-preserved fault captures use their own preserved tables so rolling cleanup does not delete them.
 - SQLite may not shrink the physical database file immediately after pruning, but deleted watch rows are reclaimed for reuse so retained watch data stays bounded by the configured window.
 
 ## Configuration
@@ -195,6 +221,7 @@ In this workspace, `docker` is not installed, so the Compose files were authored
 - Moonraker sampling currently uses HTTP object queries rather than websocket streaming.
 - Printer-side fault and state events are limited to what TempWatch already persists from the manual-session lifecycle.
 - Background Watch currently stores rolling thermal snapshots, but it does not yet persist a separate printer-event timeline beyond the sample payload fields.
+- Preserved captures currently stay distinct from manual sessions; promotion of a preserved capture into a normal saved session is not implemented yet.
 - Background Watch resumes after backend restart without duplicating samples inside the 2-second polling interval, but it does not backfill samples that would have been captured while the backend was offline.
 - Saved-session comparison currently focuses on nozzle and bed overlays using the existing inline SVG graphing path.
 - Compose runtime validation still needs to be completed on a machine with Docker installed.

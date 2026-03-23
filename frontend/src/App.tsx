@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 
 import { DashboardPage } from "./pages/DashboardPage";
+import { PreservedCapturesPage } from "./pages/PreservedCapturesPage";
 import { PrintersPage } from "./pages/PrintersPage";
 import { SavedSessionsPage } from "./pages/SavedSessionsPage";
 import { SessionsPage } from "./pages/SessionsPage";
@@ -14,7 +15,7 @@ export function App() {
           <p className="eyebrow">Local printer diagnostics</p>
           <h1>TempWatch</h1>
           <p className="lede">
-            Manual thermal recording, saved sessions, and focused troubleshooting for Moonraker/Klipper printers.
+            Manual thermal recording, rolling watch history, and focused troubleshooting for Moonraker/Klipper printers.
           </p>
         </div>
 
@@ -31,6 +32,9 @@ export function App() {
           <NavLink className={({ isActive }) => (isActive ? "active" : undefined)} to="/watch">
             Watch
           </NavLink>
+          <NavLink className={({ isActive }) => (isActive ? "active" : undefined)} to="/preserved">
+            Preserved
+          </NavLink>
           <NavLink className={({ isActive }) => (isActive ? "active" : undefined)} to="/saved">
             Saved
           </NavLink>
@@ -43,6 +47,7 @@ export function App() {
           <Route path="/printers" element={<PrintersPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/watch" element={<WatchPage />} />
+          <Route path="/preserved" element={<PreservedCapturesPage />} />
           <Route path="/saved" element={<SavedSessionsPage />} />
         </Routes>
       </main>

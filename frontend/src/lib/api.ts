@@ -3,6 +3,9 @@ import type {
   BackgroundWatchConfigUpdate,
   BackgroundWatchPromoteInput,
   BackgroundWatchSample,
+  PreservedWatchCapture,
+  PreservedWatchSample,
+  PreservedWatchTriggerEvent,
   PrinterConnectionCheck,
   PrinterCreateInput,
   PrinterProfile,
@@ -133,6 +136,32 @@ export async function promoteBackgroundWatchHistory(
   });
 
   return readJson<SessionRecord>(response);
+}
+
+export async function fetchPreservedWatchCaptures(options?: { printerId?: number }): Promise<PreservedWatchCapture[]> {
+  const params = new URLSearchParams();
+  if (options?.printerId !== undefined) {
+    params.set("printer_id", String(options.printerId));
+  }
+
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const response = await fetch(`${apiBaseUrl}/preserved-watch-captures${suffix}`);
+  return readJson<PreservedWatchCapture[]>(response);
+}
+
+export async function fetchPreservedWatchCapture(captureId: number): Promise<PreservedWatchCapture> {
+  const response = await fetch(`${apiBaseUrl}/preserved-watch-captures/${captureId}`);
+  return readJson<PreservedWatchCapture>(response);
+}
+
+export async function fetchPreservedWatchSamples(captureId: number): Promise<PreservedWatchSample[]> {
+  const response = await fetch(`${apiBaseUrl}/preserved-watch-captures/${captureId}/samples`);
+  return readJson<PreservedWatchSample[]>(response);
+}
+
+export async function fetchPreservedWatchTriggers(captureId: number): Promise<PreservedWatchTriggerEvent[]> {
+  const response = await fetch(`${apiBaseUrl}/preserved-watch-captures/${captureId}/triggers`);
+  return readJson<PreservedWatchTriggerEvent[]>(response);
 }
 
 export async function fetchSessions(options?: { printerId?: number; status?: SessionStatus }): Promise<SessionRecord[]> {
