@@ -60,22 +60,24 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Priority Order
 
-### Current Completed Slice: Background Watch Retention Verification
+### Current Active Slice: Event-Triggered Preservation
 
-Background Watch retention is now verified: watch rows stay separate from manual-session rows, timestamp-based pruning runs continuously from the backend loop, retention-window changes prune existing rows, and restart-safe polling avoids duplicate watch samples.
+Background Watch and its rolling retention are implemented. The next enhancement is automatic preservation when a likely thermal fault is detected, while keeping manual sessions, rolling watch history, and auto-preserved fault captures as distinct concepts.
 
-1. Separate per-printer background watch configuration with enable/disable state and rolling retention windows of `4h`, `8h`, `12h`, or `24h`.
-2. Separate rolling watch-sample storage so manual sessions and passive watch history remain distinct concepts.
-3. Fixed 2-second polling and continuous pruning for enabled watch-mode printers.
-4. Printer-management UI for watch enable/disable and retention selection.
-5. Recent watch-history page for a selected printer.
-6. Initial promotion flow that turns a recent watch window into a saved manual session.
-7. Documentation updates distinguishing manual sessions from watch mode and keeping websocket ingestion deferred.
+1. Add a first explicit rule-based trigger set during Background Watch polling:
+   - sudden nozzle temperature drop while target remains set
+   - sudden bed temperature drop while target remains set
+   - sustained actual-versus-target gap across consecutive samples
+2. Preserve a bounded watch-history window when a trigger fires so the relevant data survives normal rolling pruning.
+3. Keep preserved captures separate from manual sessions and separate from rolling watch rows.
+4. Persist trigger metadata with rule, reason, printer, and trigger time so the preservation path is inspectable.
+5. Add a first UI for preserved auto-captures and make the trigger visible in the related graph/detail view.
+6. Keep websocket ingestion deferred unless this slice proves it is strictly necessary later.
 
 ### Next Priority Slice
 
 1. Validate Docker and Portainer runtime behavior end to end on a host with Docker installed, including persistence across redeploys.
-2. Add reliability hardening around Moonraker outages, watch-mode status reporting, and cleanup observability.
+2. Add reliability hardening around Moonraker outages, watch-mode status reporting, and preservation observability.
 3. Only after that, return to Moonraker websocket ingestion.
 4. Then begin first diagnostic helpers.
 
@@ -116,7 +118,14 @@ Background Watch retention is now verified: watch rows stay separate from manual
 - Retention-window pruning for 4 / 8 / 12 / 24 hour histories.
 - Recent watch-history view and first promotion hook into manual sessions.
 
-### Phase 5: Reliability And Diagnostics
+### Phase 5: Event-Triggered Preservation
+
+- Rule-based anomaly detection during Background Watch polling.
+- Auto-preserved fault captures that survive rolling watch pruning.
+- Trigger metadata persistence and review UI.
+- First preserved-capture graph/detail workflow.
+
+### Phase 6: Reliability And Diagnostics
 
 - Docker / Portainer runtime validation on a real host.
 - Moonraker websocket ingestion.
@@ -125,7 +134,7 @@ Background Watch retention is now verified: watch rows stay separate from manual
 - Cooling Impact Test Mode.
 - Data-retention and cleanup flow.
 
-### Phase 6: Diagnostic Tools II
+### Phase 7: Diagnostic Tools II
 
 - Smart PID Assistant.
 - Diagnosis Engine.
@@ -153,6 +162,7 @@ Background Watch retention is now verified: watch rows stay separate from manual
 - [x] Docker persistence hardening for Portainer redeploys implemented.
 - [x] Sample table visible row limit control implemented.
 - [x] Background watch mode fully verified and complete.
+- [ ] Event-triggered preservation implemented.
 - [ ] Docker runtime redeploy validation completed on a real host.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
@@ -169,6 +179,7 @@ Background Watch retention is now verified: watch rows stay separate from manual
 - Watch history pruning is verified: stale rows are deleted by timestamp for all configured printers every backend loop cycle, even when no new watch sample is captured.
 - Retention-window changes prune existing watch rows immediately, and restart-safe polling avoids duplicate watch samples inside the configured 2-second interval.
 - Backend restart resumes watch mode from persisted configuration, but TempWatch does not backfill samples that were missed while the backend process was offline.
+- Event-triggered preservation backend foundations now exist: trigger detection, preserved-capture persistence, and preserved-capture read APIs are implemented, but the dedicated review UI and final docs are still pending.
 - The Watch page can inspect recent rolling history for a selected printer, auto-refresh retained samples, and promote the current watch window into a saved manual session.
 - Completed manual sessions can be saved with notes or discarded from the session detail flow.
 - Saved sessions can be filtered by printer, reviewed with notes/sample counts, and compared two-at-a-time with elapsed or absolute alignment.
@@ -207,6 +218,7 @@ Background Watch retention is now verified: watch rows stay separate from manual
 - Background Watch window promotion creates a saved manual session copy instead of mutating watch data so rolling history stays disposable and the promoted diagnostic artifact becomes a normal saved session.
 - Background Watch pruning now runs independently of successful sample capture so disabled printers, transient Moonraker failures, and loop restarts do not allow stale watch rows to accumulate indefinitely.
 - SQLite row retention is bounded by the watch window, but the physical database file may not shrink on every prune because SQLite reuses freed pages.
+- Event-triggered preservation should stay rule-based and explicit in its first version; do not introduce heuristic scoring or ML-style classification until the preserved-capture workflow is stable.
 
 ## Known Risks / Open Questions
 
@@ -218,6 +230,7 @@ Background Watch retention is now verified: watch rows stay separate from manual
 - Existing SQLite files created before future schema changes will eventually need a migration path.
 - Background Watch currently stores rolling samples but not a separate persisted event timeline beyond the sample payload fields.
 - Missed watch samples during backend downtime are not backfilled; only duplicate-safe resume behavior is currently implemented.
+- Event-triggered preservation thresholds will initially be hardcoded in code and documented in README until a minimal configuration layer proves necessary.
 
 ## What Changed From The Original Plan
 
@@ -235,10 +248,10 @@ Background Watch retention is now verified: watch rows stay separate from manual
 
 ## Next Steps
 
-1. Validate Docker and Portainer runtime behavior on a real host, including persistent data across redeploys and live frontend refresh behavior.
-2. Add resilience around Moonraker outages, watch-mode status reporting, and cleanup observability.
-3. Decide whether watch-mode promotion should allow selecting a smaller sub-window than the full retention window.
-4. Only after that, return to websocket ingestion and the first diagnostic helpers.
+1. Add a review UI for preserved watch captures with trigger reason, printer, time, and graph visibility.
+2. Document trigger thresholds, preserved-window behavior, and the distinction between manual sessions, rolling watch history, and auto-preserved captures.
+3. Verify the preserved-capture flow end to end in the frontend against the new backend APIs.
+4. Only after that, return to Docker runtime validation and then websocket ingestion.
 
 ## Recent Completed Work Log
 
@@ -265,9 +278,11 @@ Background Watch retention is now verified: watch rows stay separate from manual
 - 2026-03-22: Added the first watch-mode frontend slice with per-printer watch controls, a dedicated watch history page, rolling history auto-refresh, and documentation updates.
 - 2026-03-22: Re-opened the watch-mode slice to verify and harden rolling retention before marking the feature complete.
 - 2026-03-22: Verified Background Watch retention with backend tests and loop-level cleanup so stale watch rows are pruned continuously without contaminating manual-session storage.
+- 2026-03-22: Re-prioritized the roadmap so Event-Triggered Preservation becomes the next Background Watch enhancement.
+- 2026-03-22: Added backend event-triggered preservation with rule-based watch triggers, preserved capture tables, and backend verification that preserved rows survive rolling watch pruning.
 
 ## Upcoming Commit Targets
 
-- Commit 16: Validate Docker and Portainer runtime behavior on a host with Docker installed.
-- Commit 17: Add watch-mode and polling resilience improvements.
+- Commit 16: Implement event-triggered preservation for Background Watch.
+- Commit 17: Validate Docker and Portainer runtime behavior on a host with Docker installed.
 - Commit 18: Moonraker websocket ingestion baseline.

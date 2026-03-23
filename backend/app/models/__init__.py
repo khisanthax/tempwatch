@@ -1,6 +1,10 @@
 from app.models.entities import (
     BackgroundWatchConfig,
     BackgroundWatchSample,
+    PreservedWatchCapture,
+    PreservedWatchCaptureStatus,
+    PreservedWatchSample,
+    PreservedWatchTriggerEvent,
     PrinterProfile,
     RecordingSession,
     SessionStatus,
@@ -11,6 +15,10 @@ from app.models.entities import (
 __all__ = [
     "BackgroundWatchConfig",
     "BackgroundWatchSample",
+    "PreservedWatchCapture",
+    "PreservedWatchCaptureStatus",
+    "PreservedWatchSample",
+    "PreservedWatchTriggerEvent",
     "PrinterProfile",
     "RecordingSession",
     "SessionStatus",

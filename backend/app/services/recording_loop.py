@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.background_watch import BackgroundWatchService
 from app.services.session_lifecycle import SessionLifecycleService
+from app.services.watch_preservation import WatchPreservationService
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -36,6 +37,7 @@ class RecordingLoop:
                     db.rollback()
 
             watch_service = BackgroundWatchService(db)
+            preservation_service = WatchPreservationService(db)
             try:
                 pruned_count = watch_service.prune_all_watch_history(commit=True)
                 if pruned_count > 0:
@@ -48,9 +50,21 @@ class RecordingLoop:
                 try:
                     captured = watch_service.capture_watch_sample_if_due(config)
                     if captured is not None:
+                        printer = config.printer or session_service.get_printer(config.printer_id)
+                        preserved = preservation_service.process_watch_sample(printer, captured)
                         logger.debug("Captured watch sample for printer %s", config.printer_id)
+                        if preserved is not None:
+                            logger.debug("Preserved watch capture %s for printer %s", preserved.id, config.printer_id)
                 except Exception:
                     logger.exception("Failed to capture watch sample for printer %s", config.printer_id)
                     db.rollback()
+
+            try:
+                finalized_count = preservation_service.finalize_due_captures()
+                if finalized_count > 0:
+                    logger.debug("Finalized %s preserved watch captures", finalized_count)
+            except Exception:
+                logger.exception("Failed to finalize preserved watch captures")
+                db.rollback()
         finally:
             db.close()

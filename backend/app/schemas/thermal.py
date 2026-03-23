@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import SessionStatus
+from app.models import PreservedWatchCaptureStatus, SessionStatus
 
 WatchRetentionHours = Literal[4, 8, 12, 24]
 
@@ -54,6 +54,53 @@ class BackgroundWatchPromoteRequest(BaseModel):
     label: str | None = Field(default=None, max_length=160)
     save_notes: str | None = None
     hours: WatchRetentionHours | None = None
+
+
+class PreservedWatchCaptureRead(ReadModel):
+    id: int
+    printer_id: int
+    status: PreservedWatchCaptureStatus
+    source: str
+    trigger_rule: str
+    trigger_reason: str
+    trigger_time: datetime
+    capture_start_at: datetime
+    capture_end_at: datetime
+    finalized_at: datetime | None
+    sample_count: int = 0
+    trigger_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class PreservedWatchSampleRead(ReadModel):
+    id: int
+    capture_id: int
+    source_watch_sample_id: int | None
+    captured_at: datetime
+    nozzle_actual: float | None
+    nozzle_target: float | None
+    bed_actual: float | None
+    bed_target: float | None
+    chamber_actual: float | None
+    heater_power: float | None
+    fan_speed: float | None
+    print_state: str | None
+    source: str
+    raw_payload: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PreservedWatchTriggerEventRead(ReadModel):
+    id: int
+    capture_id: int
+    event_time: datetime
+    trigger_rule: str
+    trigger_reason: str
+    metadata_json: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class PrinterBase(BaseModel):
