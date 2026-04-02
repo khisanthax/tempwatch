@@ -7,6 +7,8 @@ from app.models import (
     PreservedWatchTriggerEvent,
     PrinterProfile,
     RecordingSession,
+    SmartWatchConfig,
+    SmartWatchSession,
     TemperatureSample,
     ThermalEvent,
 )  # noqa: F401

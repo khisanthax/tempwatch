@@ -8,6 +8,8 @@ from app.models.entities import (
     PrinterProfile,
     RecordingSession,
     SessionStatus,
+    SmartWatchConfig,
+    SmartWatchSession,
     TemperatureSample,
     ThermalEvent,
 )
@@ -22,6 +24,8 @@ __all__ = [
     "PrinterProfile",
     "RecordingSession",
     "SessionStatus",
+    "SmartWatchConfig",
+    "SmartWatchSession",
     "TemperatureSample",
     "ThermalEvent",
 ]

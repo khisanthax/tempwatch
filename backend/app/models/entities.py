@@ -45,8 +45,17 @@ class PrinterProfile(TimestampMixin, Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    smart_watch_config: Mapped["SmartWatchConfig | None"] = relationship(
+        back_populates="printer",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
     watch_samples: Mapped[list["BackgroundWatchSample"]] = relationship(back_populates="printer", cascade="all, delete-orphan")
     preserved_watch_captures: Mapped[list["PreservedWatchCapture"]] = relationship(
+        back_populates="printer",
+        cascade="all, delete-orphan",
+    )
+    smart_watch_sessions: Mapped[list["SmartWatchSession"]] = relationship(
         back_populates="printer",
         cascade="all, delete-orphan",
     )
@@ -67,6 +76,11 @@ class RecordingSession(TimestampMixin, Base):
     printer: Mapped[PrinterProfile] = relationship(back_populates="sessions")
     samples: Mapped[list["TemperatureSample"]] = relationship(back_populates="session", cascade="all, delete-orphan")
     thermal_events: Mapped[list["ThermalEvent"]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    smart_watch_run: Mapped["SmartWatchSession | None"] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class TemperatureSample(TimestampMixin, Base):
@@ -111,6 +125,35 @@ class BackgroundWatchConfig(TimestampMixin, Base):
     retention_hours: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
 
     printer: Mapped[PrinterProfile] = relationship(back_populates="watch_config")
+
+
+class SmartWatchConfig(TimestampMixin, Base):
+    __tablename__ = "smart_watch_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    printer_id: Mapped[int] = mapped_column(ForeignKey("printer_profiles.id"), nullable=False, unique=True, index=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_observed_state: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    last_observed_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    suppressed_print_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    printer: Mapped[PrinterProfile] = relationship(back_populates="smart_watch_config")
+
+
+class SmartWatchSession(TimestampMixin, Base):
+    __tablename__ = "smart_watch_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    printer_id: Mapped[int] = mapped_column(ForeignKey("printer_profiles.id"), nullable=False, index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("recording_sessions.id"), nullable=False, unique=True, index=True)
+    print_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    started_state: Mapped[str] = mapped_column(String(80), nullable=False)
+    last_state: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    terminal_state: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    started_via_recovery: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    printer: Mapped[PrinterProfile] = relationship(back_populates="smart_watch_sessions")
+    session: Mapped[RecordingSession] = relationship(back_populates="smart_watch_run")
 
 
 class BackgroundWatchSample(TimestampMixin, Base):

@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.background_watch import BackgroundWatchService
 from app.services.session_lifecycle import SessionLifecycleService
+from app.services.smart_watch import SmartWatchService
 from app.services.watch_preservation import WatchPreservationService
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,16 @@ class RecordingLoop:
                             logger.debug("Preserved watch capture %s for printer %s", preserved.id, config.printer_id)
                 except Exception:
                     logger.exception("Failed to capture watch sample for printer %s", config.printer_id)
+                    db.rollback()
+
+            smart_watch_service = SmartWatchService(db)
+            for config in smart_watch_service.list_enabled_configs():
+                try:
+                    session = smart_watch_service.poll_printer(config)
+                    if session is not None:
+                        logger.debug("Processed smart watch lifecycle for printer %s", config.printer_id)
+                except Exception:
+                    logger.exception("Failed to process smart watch for printer %s", config.printer_id)
                     db.rollback()
 
             try:

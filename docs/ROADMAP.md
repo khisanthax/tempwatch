@@ -60,21 +60,21 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Priority Order
 
-### Current Completed Slice: Event-Triggered Preservation
+### Current Active Slice: Smart Watch Mode
 
-Event-triggered preservation is now implemented with explicit rule-based triggers, preserved capture storage, and a review UI. Manual sessions, rolling watch history, and auto-preserved fault captures remain separate concepts.
+Background Watch and event-triggered preservation are implemented. The next session-focused enhancement is Smart Watch: automatic full-print session capture tied to Moonraker/Klipper print lifecycle while keeping manual sessions, rolling watch history, and auto-preserved captures as separate concepts.
 
-1. Rule-based Background Watch triggers detect sudden nozzle drops, sudden bed drops, and sustained target gaps.
-2. Triggered captures preserve a bounded watch-history window that survives normal rolling pruning.
-3. Preserved captures stay separate from both manual sessions and rolling watch rows.
-4. Trigger metadata is persisted with rule, reason, printer, and trigger time.
-5. The UI exposes preserved captures, detail review, and graph markers for the recorded trigger events.
-6. Websocket ingestion remains deferred.
+1. Add a per-printer Smart Watch enable/disable control separate from Background Watch.
+2. Detect print lifecycle using explicit Moonraker print state and filename metadata where available.
+3. Automatically create a recording session when a print starts and avoid duplicates if a session already exists for that printer.
+4. Keep the same session through pause/resume and stop plus save it on terminal print states such as completed, canceled, or error/shutdown when distinguishable.
+5. Keep Smart Watch sessions clearly distinguishable from manual sessions and preserved watch captures in both storage and UI.
+6. Keep websocket ingestion deferred unless this slice proves it is strictly necessary later.
 
 ### Next Priority Slice
 
 1. Validate Docker and Portainer runtime behavior end to end on a host with Docker installed, including persistence across redeploys.
-2. Add reliability hardening around Moonraker outages, watch-mode status reporting, and preservation observability.
+2. Add reliability hardening around Moonraker outages, watch-mode status reporting, and Smart Watch observability.
 3. Only after that, return to Moonraker websocket ingestion.
 4. Then begin first diagnostic helpers.
 
@@ -122,7 +122,15 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 - Trigger metadata persistence and review UI.
 - First preserved-capture graph/detail workflow.
 
-### Phase 6: Reliability And Diagnostics
+### Phase 6: Smart Watch Mode
+
+- Per-printer Smart Watch configuration.
+- Print lifecycle detection using Moonraker print state and filename metadata.
+- Automatic session start on print begin and automatic stop plus save on terminal states.
+- Collision handling with existing manual sessions and safe restart behavior.
+- Smart Watch session metadata and UI labeling that stay separate from manual sessions and preserved watch captures.
+
+### Phase 7: Reliability And Diagnostics
 
 - Docker / Portainer runtime validation on a real host.
 - Moonraker websocket ingestion.
@@ -131,7 +139,7 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 - Cooling Impact Test Mode.
 - Data-retention and cleanup flow.
 
-### Phase 7: Diagnostic Tools II
+### Phase 8: Diagnostic Tools II
 
 - Smart PID Assistant.
 - Diagnosis Engine.
@@ -160,6 +168,7 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 - [x] Sample table visible row limit control implemented.
 - [x] Background watch mode fully verified and complete.
 - [x] Event-triggered preservation implemented.
+- [ ] Smart Watch mode implemented.
 - [ ] Docker runtime redeploy validation completed on a real host.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
@@ -177,6 +186,8 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 - Retention-window changes prune existing watch rows immediately, and restart-safe polling avoids duplicate watch samples inside the configured 2-second interval.
 - Backend restart resumes watch mode from persisted configuration, but TempWatch does not backfill samples that were missed while the backend process was offline.
 - Event-triggered preservation is now available end to end with backend trigger detection, preserved-capture persistence, preserved-capture APIs, and a dedicated review page in the frontend.
+- Smart Watch is the active implementation slice. Backend lifecycle handling is implemented, while per-printer controls and session metadata still need the frontend pass.
+- The polling loop now uses Moonraker `print_stats` state plus filename transitions to auto-create Smart Watch sessions, keep them active through pauses, auto-stop plus save them on terminal states, and suppress duplicates when another active session already exists for that printer.
 - The Watch page can inspect recent rolling history for a selected printer, auto-refresh retained samples, and promote the current watch window into a saved manual session.
 - Completed manual sessions can be saved with notes or discarded from the session detail flow.
 - Saved sessions can be filtered by printer, reviewed with notes/sample counts, and compared two-at-a-time with elapsed or absolute alignment.
@@ -216,6 +227,8 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 - Background Watch pruning now runs independently of successful sample capture so disabled printers, transient Moonraker failures, and loop restarts do not allow stale watch rows to accumulate indefinitely.
 - SQLite row retention is bounded by the watch window, but the physical database file may not shrink on every prune because SQLite reuses freed pages.
 - Event-triggered preservation should stay rule-based and explicit in its first version; do not introduce heuristic scoring or ML-style classification until the preserved-capture workflow is stable.
+- Smart Watch should reuse the session model where practical, but its metadata and lifecycle must stay distinct from both manual sessions and watch preservation.
+- The first Smart Watch implementation should stay explicit and inspectable: use Moonraker `print_stats` state and filename transitions, not inferred heuristics.
 
 ## Known Risks / Open Questions
 
@@ -228,6 +241,7 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 - Background Watch currently stores rolling samples but not a separate persisted event timeline beyond the sample payload fields.
 - Missed watch samples during backend downtime are not backfilled; only duplicate-safe resume behavior is currently implemented.
 - Event-triggered preservation thresholds are intentionally hardcoded in code and documented in README until a minimal configuration layer proves necessary.
+- Smart Watch needs honest restart semantics; automatic recovery is valuable, but missing pre-restart print history should be documented if the first version cannot reattach perfectly.
 
 ## What Changed From The Original Plan
 
@@ -245,10 +259,10 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 
 ## Next Steps
 
-1. Validate Docker and Portainer runtime behavior on a real host, including persistent data across redeploys and live frontend refresh behavior.
-2. Add resilience around Moonraker outages, watch-mode status reporting, and preservation observability.
-3. Decide whether preserved captures should later support promotion into normal saved sessions.
-4. Only after that, return to websocket ingestion and the first diagnostic helpers.
+1. Add per-printer Smart Watch controls and make Smart Watch sessions visibly distinct in existing session review flows.
+2. Surface Smart Watch metadata such as filename, recovery start, and auto-stop reason in session detail and saved-session views.
+3. Document Smart Watch print-state detection, pause behavior, collision handling, and restart limitations honestly.
+4. Only after that, return to Docker runtime validation and then websocket ingestion.
 
 ## Recent Completed Work Log
 
@@ -278,9 +292,11 @@ Event-triggered preservation is now implemented with explicit rule-based trigger
 - 2026-03-22: Re-prioritized the roadmap so Event-Triggered Preservation becomes the next Background Watch enhancement.
 - 2026-03-22: Added backend event-triggered preservation with rule-based watch triggers, preserved capture tables, and backend verification that preserved rows survive rolling watch pruning.
 - 2026-03-22: Added the preserved-capture frontend review page, trigger markers, and documentation for the first end-to-end event-triggered preservation flow.
+- 2026-04-02: Re-prioritized the roadmap so Smart Watch becomes the next session-lifecycle enhancement after Background Watch and preserved captures.
+- 2026-04-02: Clarified that the first Smart Watch implementation should use explicit `print_stats` lifecycle detection, separate Smart Watch metadata, and no heuristic trigger logic.
+- 2026-04-02: Added backend Smart Watch lifecycle handling with separate config/session metadata, automatic start/save on print-state transitions, pause-safe continuity, and duplicate-session collision protection.
 
 ## Upcoming Commit Targets
 
-- Commit 16: Validate Docker and Portainer runtime behavior on a host with Docker installed.
-- Commit 17: Add watch-mode and preservation resilience improvements.
-- Commit 18: Moonraker websocket ingestion baseline.
+- Commit 17: Add Smart Watch controls and session visibility in the UI.
+- Commit 18: Document Smart Watch behavior and then validate Docker and Portainer runtime behavior on a host with Docker installed.

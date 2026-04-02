@@ -32,6 +32,20 @@ class BackgroundWatchConfigUpdate(BaseModel):
     retention_hours: WatchRetentionHours | None = None
 
 
+class SmartWatchConfigRead(ReadModel):
+    id: int
+    printer_id: int
+    is_enabled: bool
+    last_observed_state: str | None
+    last_observed_filename: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SmartWatchConfigUpdate(BaseModel):
+    is_enabled: bool | None = None
+
+
 class BackgroundWatchSampleRead(ReadModel):
     id: int
     printer_id: int
@@ -126,6 +140,7 @@ class PrinterUpdate(BaseModel):
 class PrinterRead(ReadModel, PrinterBase):
     id: int
     watch_config: BackgroundWatchConfigRead | None = None
+    smart_watch_config: SmartWatchConfigRead | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -160,7 +175,21 @@ class SessionRead(ReadModel):
     status: SessionStatus
     stop_reason: str | None
     save_notes: str | None
+    smart_watch_run: "SmartWatchSessionRead | None" = None
     sample_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class SmartWatchSessionRead(ReadModel):
+    id: int
+    printer_id: int
+    session_id: int
+    print_filename: str | None
+    started_state: str
+    last_state: str | None
+    terminal_state: str | None
+    started_via_recovery: bool
     created_at: datetime
     updated_at: datetime
 
@@ -197,3 +226,6 @@ class ThermalEventRead(ReadModel):
 class SessionCaptureResponse(ReadModel):
     session: SessionRead
     sample: TemperatureSampleRead
+
+
+SessionRead.model_rebuild()

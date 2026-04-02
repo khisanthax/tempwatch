@@ -28,8 +28,7 @@ class MoonrakerClient:
         }
 
     def fetch_temperature_snapshot(self, printer: PrinterProfile) -> dict[str, object]:
-        payload = self._get_json(printer, "printer/objects/query?extruder&heater_bed&fan&print_stats")
-        status_payload = payload.get("result", {}).get("status", {})
+        payload, status_payload = self._fetch_status_payload(printer)
 
         extruder = status_payload.get("extruder", {})
         bed = status_payload.get("heater_bed", {})
@@ -56,6 +55,21 @@ class MoonrakerClient:
             )
 
         return snapshot
+
+    def fetch_print_status(self, printer: PrinterProfile) -> dict[str, str | None]:
+        _, status_payload = self._fetch_status_payload(printer)
+        print_stats = status_payload.get("print_stats", {})
+
+        return {
+            "state": self._to_string(print_stats.get("state")),
+            "filename": self._to_string(print_stats.get("filename")),
+            "message": self._to_string(print_stats.get("message")),
+        }
+
+    def _fetch_status_payload(self, printer: PrinterProfile) -> tuple[dict[str, object], dict[str, object]]:
+        payload = self._get_json(printer, "printer/objects/query?extruder&heater_bed&fan&print_stats")
+        status_payload = payload.get("result", {}).get("status", {})
+        return payload, status_payload
 
     def _get_json(self, printer: PrinterProfile, path: str) -> dict[str, object]:
         request = Request(
@@ -88,6 +102,13 @@ class MoonrakerClient:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _to_string(value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
     @classmethod
     def _extract_chamber_temperature(cls, status_payload: dict[str, object]) -> float | None:

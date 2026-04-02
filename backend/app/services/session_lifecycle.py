@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
@@ -6,10 +7,19 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.integrations.moonraker import MoonrakerClient
-from app.models import BackgroundWatchConfig, PrinterProfile, RecordingSession, SessionStatus, TemperatureSample, ThermalEvent
+from app.models import (
+    BackgroundWatchConfig,
+    PrinterProfile,
+    RecordingSession,
+    SessionStatus,
+    SmartWatchConfig,
+    TemperatureSample,
+    ThermalEvent,
+)
 
 settings = get_settings()
 DEFAULT_WATCH_RETENTION_HOURS = 4
+DEFAULT_SMART_WATCH_ENABLED = False
 
 
 class SessionLifecycleService:
@@ -21,6 +31,7 @@ class SessionLifecycleService:
         stmt: Select[tuple[PrinterProfile]] = select(PrinterProfile).order_by(PrinterProfile.name.asc())
         printers = list(self.db.scalars(stmt))
         self._ensure_watch_configs(printers)
+        self._ensure_smart_watch_configs(printers)
         return printers
 
     def get_printer(self, printer_id: int) -> PrinterProfile:
@@ -28,6 +39,7 @@ class SessionLifecycleService:
         if printer is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Printer not found")
         self._ensure_watch_configs([printer])
+        self._ensure_smart_watch_configs([printer])
         return printer
 
     def create_printer(self, *, name: str, base_url: str, api_key: str | None, notes: str | None, is_enabled: bool) -> PrinterProfile:
@@ -43,6 +55,7 @@ class SessionLifecycleService:
             is_enabled=is_enabled,
         )
         printer.watch_config = BackgroundWatchConfig(is_enabled=False, retention_hours=DEFAULT_WATCH_RETENTION_HOURS)
+        printer.smart_watch_config = SmartWatchConfig(is_enabled=DEFAULT_SMART_WATCH_ENABLED)
         self.db.add(printer)
         self.db.commit()
         self.db.refresh(printer)
@@ -77,6 +90,7 @@ class SessionLifecycleService:
         self.db.commit()
         self.db.refresh(printer)
         self._ensure_watch_configs([printer])
+        self._ensure_smart_watch_configs([printer])
         return printer
 
     def delete_printer(self, printer: PrinterProfile) -> None:
@@ -113,6 +127,17 @@ class SessionLifecycleService:
         sessions = list(self.db.scalars(stmt))
         self._attach_sample_counts(sessions)
         return sessions
+
+    def get_active_session_for_printer(self, printer_id: int) -> RecordingSession | None:
+        self._expire_stale_sessions(printer_id=printer_id)
+        stmt = select(RecordingSession).where(
+            RecordingSession.printer_id == printer_id,
+            RecordingSession.status == SessionStatus.ACTIVE,
+        )
+        session = self.db.scalar(stmt)
+        if session is not None:
+            self._attach_sample_counts([session])
+        return session
 
     def start_session(self, *, printer: PrinterProfile, label: str | None = None) -> RecordingSession:
         if not printer.is_enabled:
@@ -241,6 +266,29 @@ class SessionLifecycleService:
             **self.moonraker.check_connection(printer),
         }
 
+    def record_event(
+        self,
+        session: RecordingSession,
+        *,
+        event_type: str,
+        message: str,
+        metadata: dict[str, object] | None = None,
+        event_time: datetime | None = None,
+        commit: bool = False,
+    ) -> ThermalEvent:
+        event = ThermalEvent(
+            session=session,
+            event_type=event_type,
+            message=message,
+            metadata_json=json.dumps(metadata) if metadata is not None else None,
+            event_time=self._coerce_utc(event_time or datetime.now(UTC)),
+        )
+        self.db.add(event)
+        if commit:
+            self.db.commit()
+            self.db.refresh(event)
+        return event
+
     def _capture_sample_record(self, session: RecordingSession) -> TemperatureSample:
         if session.status != SessionStatus.ACTIVE:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Samples can only be captured for active sessions")
@@ -306,6 +354,23 @@ class SessionLifecycleService:
             for printer in printers:
                 self.db.refresh(printer)
 
+    def _ensure_smart_watch_configs(self, printers: list[PrinterProfile]) -> None:
+        created = False
+        for printer in printers:
+            if printer.smart_watch_config is not None:
+                continue
+            printer.smart_watch_config = SmartWatchConfig(
+                printer_id=printer.id,
+                is_enabled=DEFAULT_SMART_WATCH_ENABLED,
+            )
+            self.db.add(printer.smart_watch_config)
+            created = True
+
+        if created:
+            self.db.commit()
+            for printer in printers:
+                self.db.refresh(printer)
+
     def _expire_stale_sessions(self, *, printer_id: int | None = None) -> None:
         stmt = select(RecordingSession).where(RecordingSession.status == SessionStatus.ACTIVE)
         if printer_id is not None:
@@ -336,8 +401,7 @@ class SessionLifecycleService:
         return True
 
     def _record_event(self, session: RecordingSession, *, event_type: str, message: str) -> None:
-        event = ThermalEvent(session=session, event_type=event_type, message=message)
-        self.db.add(event)
+        self.record_event(session, event_type=event_type, message=message)
 
     @staticmethod
     def _coerce_utc(value: datetime) -> datetime:

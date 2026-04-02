@@ -12,9 +12,12 @@ from app.schemas.thermal import (
     PrinterRead,
     PrinterUpdate,
     SessionRead,
+    SmartWatchConfigRead,
+    SmartWatchConfigUpdate,
 )
 from app.services.background_watch import BackgroundWatchService
 from app.services.session_lifecycle import SessionLifecycleService
+from app.services.smart_watch import SmartWatchService
 
 router = APIRouter(prefix="/printers", tags=["printers"])
 
@@ -62,6 +65,18 @@ def update_watch_config(printer_id: int, payload: BackgroundWatchConfigUpdate, d
     printer = printer_service.get_printer(printer_id)
     watch_service = BackgroundWatchService(db)
     return watch_service.update_watch_config(printer, **payload.model_dump(exclude_unset=True))
+
+
+@router.patch("/{printer_id}/smart-watch-config", response_model=SmartWatchConfigRead)
+def update_smart_watch_config(
+    printer_id: int,
+    payload: SmartWatchConfigUpdate,
+    db: Session = Depends(get_db),
+) -> SmartWatchConfigRead:
+    printer_service = SessionLifecycleService(db)
+    printer = printer_service.get_printer(printer_id)
+    smart_watch_service = SmartWatchService(db)
+    return smart_watch_service.update_config(printer, **payload.model_dump(exclude_unset=True))
 
 
 @router.get("/{printer_id}/watch/samples", response_model=list[BackgroundWatchSampleRead])
