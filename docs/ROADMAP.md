@@ -60,23 +60,20 @@ TempWatch is a local-first web app for recording and analyzing 3D printer therma
 
 ## Priority Order
 
-### Current Active Slice: Smart Watch Mode
+### Current Active Slice: Runtime Validation And Reliability Hardening
 
-Background Watch and event-triggered preservation are implemented. The next session-focused enhancement is Smart Watch: automatic full-print session capture tied to Moonraker/Klipper print lifecycle while keeping manual sessions, rolling watch history, and auto-preserved captures as separate concepts.
+Smart Watch is now implemented across backend, UI, and docs. The next priority is runtime validation on a real Docker/Portainer host plus targeted reliability hardening before websocket ingestion moves back up.
 
-1. Add a per-printer Smart Watch enable/disable control separate from Background Watch.
-2. Detect print lifecycle using explicit Moonraker print state and filename metadata where available.
-3. Automatically create a recording session when a print starts and avoid duplicates if a session already exists for that printer.
-4. Keep the same session through pause/resume and stop plus save it on terminal print states such as completed, canceled, or error/shutdown when distinguishable.
-5. Keep Smart Watch sessions clearly distinguishable from manual sessions and preserved watch captures in both storage and UI.
-6. Keep websocket ingestion deferred unless this slice proves it is strictly necessary later.
+1. Validate Docker and Portainer runtime behavior end to end, including persistence across redeploys and frontend asset refresh behavior.
+2. Add observability and error surfacing around Moonraker outages, Smart Watch state transitions, and watch-mode health.
+3. Keep websocket ingestion deferred until the current polling-based session/watch modes are validated in real deployments.
+4. Then begin first diagnostic helpers.
 
 ### Next Priority Slice
 
-1. Validate Docker and Portainer runtime behavior end to end on a host with Docker installed, including persistence across redeploys.
-2. Add reliability hardening around Moonraker outages, watch-mode status reporting, and Smart Watch observability.
-3. Only after that, return to Moonraker websocket ingestion.
-4. Then begin first diagnostic helpers.
+1. Moonraker websocket ingestion.
+2. First diagnostic helpers.
+3. Data-retention and archive tooling for older printers and sessions.
 
 ## Phased Implementation Plan
 
@@ -168,7 +165,7 @@ Background Watch and event-triggered preservation are implemented. The next sess
 - [x] Sample table visible row limit control implemented.
 - [x] Background watch mode fully verified and complete.
 - [x] Event-triggered preservation implemented.
-- [ ] Smart Watch mode implemented.
+- [x] Smart Watch mode implemented.
 - [ ] Docker runtime redeploy validation completed on a real host.
 - [ ] Websocket ingestion implemented.
 - [ ] First diagnostic features implemented.
@@ -186,8 +183,8 @@ Background Watch and event-triggered preservation are implemented. The next sess
 - Retention-window changes prune existing watch rows immediately, and restart-safe polling avoids duplicate watch samples inside the configured 2-second interval.
 - Backend restart resumes watch mode from persisted configuration, but TempWatch does not backfill samples that were missed while the backend process was offline.
 - Event-triggered preservation is now available end to end with backend trigger detection, preserved-capture persistence, preserved-capture APIs, and a dedicated review page in the frontend.
-- Smart Watch is the active implementation slice. Backend lifecycle handling is implemented, while per-printer controls and session metadata still need the frontend pass.
-- The polling loop now uses Moonraker `print_stats` state plus filename transitions to auto-create Smart Watch sessions, keep them active through pauses, auto-stop plus save them on terminal states, and suppress duplicates when another active session already exists for that printer.
+- Smart Watch is implemented end to end with per-printer controls, backend print lifecycle detection, automatic session creation/save, and frontend labeling in the normal session review flows.
+- The polling loop uses Moonraker `print_stats` state plus filename transitions to auto-create Smart Watch sessions, keep them active through pauses, auto-stop plus save them on terminal states, and suppress duplicates when another active session already exists for that printer.
 - The Watch page can inspect recent rolling history for a selected printer, auto-refresh retained samples, and promote the current watch window into a saved manual session.
 - Completed manual sessions can be saved with notes or discarded from the session detail flow.
 - Saved sessions can be filtered by printer, reviewed with notes/sample counts, and compared two-at-a-time with elapsed or absolute alignment.
@@ -259,10 +256,9 @@ Background Watch and event-triggered preservation are implemented. The next sess
 
 ## Next Steps
 
-1. Add per-printer Smart Watch controls and make Smart Watch sessions visibly distinct in existing session review flows.
-2. Surface Smart Watch metadata such as filename, recovery start, and auto-stop reason in session detail and saved-session views.
-3. Document Smart Watch print-state detection, pause behavior, collision handling, and restart limitations honestly.
-4. Only after that, return to Docker runtime validation and then websocket ingestion.
+1. Validate Docker and Portainer runtime behavior end to end on a host with Docker installed.
+2. Add Moonraker outage/status visibility for Background Watch, Smart Watch, and active-session polling.
+3. Only after that, return to Moonraker websocket ingestion and the first diagnostic helpers.
 
 ## Recent Completed Work Log
 
@@ -295,8 +291,9 @@ Background Watch and event-triggered preservation are implemented. The next sess
 - 2026-04-02: Re-prioritized the roadmap so Smart Watch becomes the next session-lifecycle enhancement after Background Watch and preserved captures.
 - 2026-04-02: Clarified that the first Smart Watch implementation should use explicit `print_stats` lifecycle detection, separate Smart Watch metadata, and no heuristic trigger logic.
 - 2026-04-02: Added backend Smart Watch lifecycle handling with separate config/session metadata, automatic start/save on print-state transitions, pause-safe continuity, and duplicate-session collision protection.
+- 2026-04-02: Added Smart Watch printer controls, Smart Watch session metadata visibility in session review and saved-session flows, and README coverage for lifecycle detection and restart behavior.
 
 ## Upcoming Commit Targets
 
-- Commit 17: Add Smart Watch controls and session visibility in the UI.
-- Commit 18: Document Smart Watch behavior and then validate Docker and Portainer runtime behavior on a host with Docker installed.
+- Commit 18: Validate Docker and Portainer runtime behavior on a host with Docker installed.
+- Commit 19: Add Moonraker outage/status visibility and reliability hardening around active polling modes.

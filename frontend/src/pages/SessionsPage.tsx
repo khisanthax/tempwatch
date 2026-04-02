@@ -297,12 +297,22 @@ export function SessionsPage() {
                 >
                   <div className="printer-card-header">
                     <div>
-                      <h4>{session.label || "Untitled session"}</h4>
+                      <h4>{session.label || defaultSessionLabel(session)}</h4>
                       <p className="muted">{printerName(session.printer_id)}</p>
+                      {session.smart_watch_run?.print_filename ? <p className="muted">Print: {session.smart_watch_run.print_filename}</p> : null}
                     </div>
-                    <span className={`status-pill ${session.status === "active" ? "active" : "inactive"}`}>{session.status}</span>
+                    <div className="pill-row">
+                      {session.smart_watch_run ? <span className="source-pill smart-watch">smart watch</span> : null}
+                      <span className={`status-pill ${session.status === "active" ? "active" : "inactive"}`}>{session.status}</span>
+                    </div>
                   </div>
                   <p className="muted">Started: {formatDisplayDateTime(session.started_at)}</p>
+                  {session.smart_watch_run ? (
+                    <p className="muted">
+                      Smart Watch state: {session.smart_watch_run.last_state ?? session.smart_watch_run.started_state}
+                      {session.smart_watch_run.started_via_recovery ? " (recovery start)" : ""}
+                    </p>
+                  ) : null}
                   <p className="muted">Samples: {session.sample_count}</p>
                   <div className="card-actions">
                     {session.status === "active" ? (
@@ -350,12 +360,25 @@ export function SessionsPage() {
           <>
             <div className="sample-summary">
               <div>
-                <strong>{selectedSession.label || "Untitled session"}</strong>
+                <strong>{selectedSession.label || defaultSessionLabel(selectedSession)}</strong>
                 <p className="muted">{printerName(selectedSession.printer_id)}</p>
                 <p className="muted">Started: {formatDisplayDateTime(selectedSession.started_at)}</p>
                 <p className="muted">Ended: {selectedSession.ended_at ? formatDisplayDateTime(selectedSession.ended_at) : "In progress"}</p>
+                {selectedSession.smart_watch_run?.print_filename ? (
+                  <p className="muted">Print file: {selectedSession.smart_watch_run.print_filename}</p>
+                ) : null}
+                {selectedSession.smart_watch_run ? (
+                  <p className="muted">
+                    Smart Watch: {selectedSession.smart_watch_run.started_via_recovery ? "recovery start" : "print lifecycle start"}; last state{" "}
+                    {selectedSession.smart_watch_run.last_state ?? selectedSession.smart_watch_run.started_state}
+                    {selectedSession.smart_watch_run.terminal_state ? `; terminal state ${selectedSession.smart_watch_run.terminal_state}` : ""}
+                  </p>
+                ) : null}
               </div>
-              <span className={`status-pill ${selectedSession.status === "active" ? "active" : "inactive"}`}>{selectedSession.status}</span>
+              <div className="pill-row">
+                {selectedSession.smart_watch_run ? <span className="source-pill smart-watch">smart watch</span> : null}
+                <span className={`status-pill ${selectedSession.status === "active" ? "active" : "inactive"}`}>{selectedSession.status}</span>
+              </div>
             </div>
 
             <div className="summary-grid">
@@ -499,6 +522,14 @@ function formatPercent(value: number | null | undefined): string {
   }
 
   return `${Math.round(value * 100)}%`;
+}
+
+function defaultSessionLabel(session: SessionRecord): string {
+  if (session.smart_watch_run?.print_filename) {
+    return `Smart Watch: ${session.smart_watch_run.print_filename}`;
+  }
+
+  return "Untitled session";
 }
 
 function formatElapsed(startedAt: string, endedAt: string | null, now: number): string {

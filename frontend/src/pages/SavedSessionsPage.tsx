@@ -125,15 +125,26 @@ export function SavedSessionsPage() {
               <article className="panel inset-panel stack-sm" key={session.id}>
                 <div className="printer-card-header">
                   <div>
-                    <h4>{session.label || "Untitled session"}</h4>
+                    <h4>{session.label || defaultSessionLabel(session)}</h4>
                     <p className="muted">{printerName(session.printer_id)}</p>
+                    {session.smart_watch_run?.print_filename ? <p className="muted">Print: {session.smart_watch_run.print_filename}</p> : null}
                   </div>
-                  <span className="status-pill inactive">saved</span>
+                  <div className="pill-row">
+                    {session.smart_watch_run ? <span className="source-pill smart-watch">smart watch</span> : null}
+                    <span className="status-pill inactive">saved</span>
+                  </div>
                 </div>
                 <p className="muted">
                   {formatDisplayDateTime(session.started_at)} to {session.ended_at ? formatDisplayDateTime(session.ended_at) : "in progress"}
                 </p>
                 <p className="muted">Duration: {formatDuration(session.started_at, session.ended_at)}</p>
+                {session.smart_watch_run ? (
+                  <p className="muted">
+                    Stop reason: {session.stop_reason ?? "unknown"}; terminal state{" "}
+                    {session.smart_watch_run.terminal_state ?? session.smart_watch_run.last_state ?? session.smart_watch_run.started_state}
+                    {session.smart_watch_run.started_via_recovery ? "; recovery start" : ""}
+                  </p>
+                ) : null}
                 <p className="muted">Samples: {session.sample_count}</p>
                 <p>{session.save_notes || "No notes recorded."}</p>
               </article>
@@ -155,7 +166,7 @@ export function SavedSessionsPage() {
               <option value="">Select a saved session</option>
               {filteredSessions.map((session) => (
                 <option key={session.id} value={session.id}>
-                  {printerName(session.printer_id)} - {session.label || `Session ${session.id}`}
+                  {printerName(session.printer_id)} - {session.label || defaultSessionLabel(session)}
                 </option>
               ))}
             </select>
@@ -169,7 +180,7 @@ export function SavedSessionsPage() {
                 .filter((session) => session.id !== primarySessionId)
                 .map((session) => (
                   <option key={session.id} value={session.id}>
-                    {printerName(session.printer_id)} - {session.label || `Session ${session.id}`}
+                    {printerName(session.printer_id)} - {session.label || defaultSessionLabel(session)}
                   </option>
                 ))}
             </select>
@@ -187,13 +198,13 @@ export function SavedSessionsPage() {
           <TemperatureChart
             alignment={alignment}
             primary={{
-              label: primarySession.label || `Session ${primarySession.id}`,
+              label: primarySession.label || defaultSessionLabel(primarySession),
               colorClass: "primary",
               samples: primarySamples,
               events: primaryEvents,
             }}
             secondary={{
-              label: secondarySession.label || `Session ${secondarySession.id}`,
+              label: secondarySession.label || defaultSessionLabel(secondarySession),
               colorClass: "secondary",
               samples: secondarySamples,
               events: secondaryEvents,
@@ -214,4 +225,12 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function defaultSessionLabel(session: SessionRecord): string {
+  if (session.smart_watch_run?.print_filename) {
+    return `Smart Watch: ${session.smart_watch_run.print_filename}`;
+  }
+
+  return `Session ${session.id}`;
 }

@@ -12,6 +12,8 @@ import type {
   SessionCaptureResponse,
   SessionRecord,
   SessionStatus,
+  SmartWatchConfig,
+  SmartWatchConfigUpdate,
   TemperatureSample,
   ThermalEvent,
   WatchRetentionHours,
@@ -103,6 +105,18 @@ export async function updateBackgroundWatchConfig(
   });
 
   return readJson<BackgroundWatchConfig>(response);
+}
+
+export async function updateSmartWatchConfig(printerId: number, payload: SmartWatchConfigUpdate): Promise<SmartWatchConfig> {
+  const response = await fetch(`${apiBaseUrl}/printers/${printerId}/smart-watch-config`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return readJson<SmartWatchConfig>(response);
 }
 
 export async function fetchBackgroundWatchSamples(

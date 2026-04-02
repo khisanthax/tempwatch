@@ -11,6 +11,16 @@ export interface BackgroundWatchConfig {
   updated_at: string;
 }
 
+export interface SmartWatchConfig {
+  id: number;
+  printer_id: number;
+  is_enabled: boolean;
+  last_observed_state: string | null;
+  last_observed_filename: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PrinterProfile {
   id: number;
   name: string;
@@ -19,6 +29,7 @@ export interface PrinterProfile {
   notes: string | null;
   is_enabled: boolean;
   watch_config: BackgroundWatchConfig | null;
+  smart_watch_config: SmartWatchConfig | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +56,10 @@ export interface BackgroundWatchConfigUpdate {
   retention_hours?: WatchRetentionHours;
 }
 
+export interface SmartWatchConfigUpdate {
+  is_enabled?: boolean;
+}
+
 export interface BackgroundWatchPromoteInput {
   label?: string | null;
   save_notes?: string | null;
@@ -63,7 +78,21 @@ export interface SessionRecord {
   status: SessionStatus;
   stop_reason: string | null;
   save_notes: string | null;
+  smart_watch_run: SmartWatchRun | null;
   sample_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SmartWatchRun {
+  id: number;
+  printer_id: number;
+  session_id: number;
+  print_filename: string | null;
+  started_state: string;
+  last_state: string | null;
+  terminal_state: string | null;
+  started_via_recovery: boolean;
   created_at: string;
   updated_at: string;
 }

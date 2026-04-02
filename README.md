@@ -42,15 +42,26 @@ TempWatch is a local-first web app for recording Moonraker/Klipper temperature d
 - Stored separately from manual sessions and separately from rolling watch rows
 - Reviewable later from the Preserved page with trigger metadata and graph markers
 
+### Smart Watch
+
+- Optional per printer and separate from Background Watch
+- Uses Moonraker `print_stats.state` plus `print_stats.filename` to detect print lifecycle changes
+- Automatically starts a full recording session when a print enters `printing`
+- Keeps the same session active through `paused` and resumed states
+- Automatically stops and saves the session when Moonraker reports terminal states such as `complete`, `cancelled`, `error`, or `shutdown`
+- Reuses the normal `recording_sessions`, `temperature_samples`, and `thermal_events` tables for the session itself, while Smart Watch-specific metadata is stored separately in `smart_watch_configs` and `smart_watch_sessions`
+- If another active session already exists for that printer, Smart Watch does not create a duplicate session for the same print
+
 ## Features In Place
 
-- Multiple printer profiles with add/edit/delete management, Moonraker URL storage, connection checks, and per-printer Background Watch settings
+- Multiple printer profiles with add/edit/delete management, Moonraker URL storage, connection checks, and separate per-printer Background Watch and Smart Watch settings
 - Manual session start/stop with one active session per printer and support for different printers recording at the same time
 - Automatic 4-day max session enforcement
 - Persistent temperature samples and lifecycle thermal events for manual sessions
 - Background watch configuration, rolling watch-sample persistence, and automatic pruning of samples older than the selected retention window
 - Backend retention verification coverage for separate watch storage, timestamp-based pruning, retention-window changes, and restart-safe polling
 - Background polling for active sessions and enabled watch-mode printers while the backend is running
+- Smart Watch auto-session creation, pause-safe continuity, terminal-state auto-save, and duplicate-session collision protection
 - Live session detail view with inline SVG graph and event markers
 - Dedicated watch-history view with recent rolling samples, auto-refresh, and watch-window promotion into saved sessions
 - Preserved-capture browser for auto-frozen Background Watch faults with trigger reason, printer, time, and graph review
@@ -104,7 +115,7 @@ uvicorn app.main:app --reload --app-dir backend
 
 The backend API is available at [http://127.0.0.1:8000](http://127.0.0.1:8000) and interactive docs at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
-When the backend is running, TempWatch resumes polling any active manual sessions and any enabled Background Watch printers stored in SQLite.
+When the backend is running, TempWatch resumes polling any active manual sessions plus any enabled Background Watch and Smart Watch printers stored in SQLite.
 
 ### 3. Run the frontend
 
@@ -189,6 +200,7 @@ docker compose down -v
 - Docker Compose stores SQLite data in the named Docker volume `tempwatch_data` at `/data/tempwatch.db` inside the backend container.
 - Manual sessions and background watch history use separate tables so passive rolling capture does not blur the manual diagnostic session model.
 - Auto-preserved fault captures use their own preserved tables so rolling cleanup does not delete them.
+- Smart Watch metadata lives in dedicated `smart_watch_configs` and `smart_watch_sessions` tables so automatic print-lifecycle sessions stay distinguishable from manual sessions and preserved captures.
 - SQLite may not shrink the physical database file immediately after pruning, but deleted watch rows are reclaimed for reuse so retained watch data stays bounded by the configured window.
 
 ## Configuration
@@ -223,6 +235,8 @@ In this workspace, `docker` is not installed, so the Compose files were authored
 - Background Watch currently stores rolling thermal snapshots, but it does not yet persist a separate printer-event timeline beyond the sample payload fields.
 - Preserved captures currently stay distinct from manual sessions; promotion of a preserved capture into a normal saved session is not implemented yet.
 - Background Watch resumes after backend restart without duplicating samples inside the 2-second polling interval, but it does not backfill samples that would have been captured while the backend was offline.
+- Smart Watch resumes safely if its active session is still in SQLite after backend restart; if the backend comes back while a print is already active but no Smart Watch session exists, TempWatch starts a recovery session from the time it re-detects the active print and does not backfill earlier missing samples.
+- Smart Watch only suppresses duplicate auto-start for the current in-progress print; it does not yet expose a dedicated printer-level notice history outside the affected session event timeline.
 - Saved-session comparison currently focuses on nozzle and bed overlays using the existing inline SVG graphing path.
 - Compose runtime validation still needs to be completed on a machine with Docker installed.
 - Moonraker host-timezone detection is not implemented yet; the deployment currently uses the documented Eastern Time fallback for display.

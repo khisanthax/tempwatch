@@ -7,6 +7,7 @@ import {
   fetchPrinters,
   updateBackgroundWatchConfig,
   updatePrinter,
+  updateSmartWatchConfig,
 } from "../lib/api";
 import type {
   PrinterConnectionCheck,
@@ -41,14 +42,27 @@ function buildWatchDrafts(printers: PrinterProfile[]): Record<number, { is_enabl
   );
 }
 
+function buildSmartWatchDrafts(printers: PrinterProfile[]): Record<number, { is_enabled: boolean }> {
+  return Object.fromEntries(
+    printers.map((printer) => [
+      printer.id,
+      {
+        is_enabled: printer.smart_watch_config?.is_enabled ?? false,
+      },
+    ]),
+  );
+}
+
 export function PrintersPage() {
   const [printers, setPrinters] = useState<PrinterProfile[]>([]);
   const [form, setForm] = useState<PrinterCreateInput>(initialForm);
   const [editingPrinterId, setEditingPrinterId] = useState<number | null>(null);
   const [checks, setChecks] = useState<Record<number, PrinterConnectionCheck>>({});
   const [watchDrafts, setWatchDrafts] = useState<Record<number, { is_enabled: boolean; retention_hours: WatchRetentionHours }>>({});
+  const [smartWatchDrafts, setSmartWatchDrafts] = useState<Record<number, { is_enabled: boolean }>>({});
   const [isChecking, setIsChecking] = useState<Record<number, boolean>>({});
   const [isSavingWatch, setIsSavingWatch] = useState<Record<number, boolean>>({});
+  const [isSavingSmartWatch, setIsSavingSmartWatch] = useState<Record<number, boolean>>({});
   const [deletingPrinterId, setDeletingPrinterId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,6 +86,7 @@ export function PrintersPage() {
       const sorted = sortPrinters(data);
       setPrinters(sorted);
       setWatchDrafts(buildWatchDrafts(sorted));
+      setSmartWatchDrafts(buildSmartWatchDrafts(sorted));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load printers");
     } finally {
@@ -98,11 +113,13 @@ export function PrintersPage() {
         const next = sortPrinters([...printers, created]);
         setPrinters(next);
         setWatchDrafts(buildWatchDrafts(next));
+        setSmartWatchDrafts(buildSmartWatchDrafts(next));
       } else {
         const updated = await updatePrinter(editingPrinterId, payload);
         const next = sortPrinters(printers.map((printer) => (printer.id === updated.id ? updated : printer)));
         setPrinters(next);
         setWatchDrafts(buildWatchDrafts(next));
+        setSmartWatchDrafts(buildSmartWatchDrafts(next));
         setChecks((current) => {
           const nextChecks = { ...current };
           delete nextChecks[updated.id];
@@ -144,6 +161,7 @@ export function PrintersPage() {
       const next = printers.filter((candidate) => candidate.id !== printer.id);
       setPrinters(next);
       setWatchDrafts(buildWatchDrafts(next));
+      setSmartWatchDrafts(buildSmartWatchDrafts(next));
       setChecks((current) => {
         const nextChecks = { ...current };
         delete nextChecks[printer.id];
@@ -193,6 +211,29 @@ export function PrintersPage() {
       setError(watchError instanceof Error ? watchError.message : "Failed to update watch settings");
     } finally {
       setIsSavingWatch((current) => ({ ...current, [printer.id]: false }));
+    }
+  }
+
+  async function handleSaveSmartWatch(printer: PrinterProfile) {
+    const draft = smartWatchDrafts[printer.id];
+    if (!draft) {
+      return;
+    }
+
+    setIsSavingSmartWatch((current) => ({ ...current, [printer.id]: true }));
+    setError(null);
+
+    try {
+      const smartWatchConfig = await updateSmartWatchConfig(printer.id, draft);
+      const next = sortPrinters(
+        printers.map((candidate) => (candidate.id === printer.id ? { ...candidate, smart_watch_config: smartWatchConfig } : candidate)),
+      );
+      setPrinters(next);
+      setSmartWatchDrafts(buildSmartWatchDrafts(next));
+    } catch (smartWatchError) {
+      setError(smartWatchError instanceof Error ? smartWatchError.message : "Failed to update Smart Watch settings");
+    } finally {
+      setIsSavingSmartWatch((current) => ({ ...current, [printer.id]: false }));
     }
   }
 
@@ -297,9 +338,13 @@ export function PrintersPage() {
                 const isDeleting = deletingPrinterId === printer.id;
                 const isEditing = editingPrinterId === printer.id;
                 const isSavingWatchSettings = Boolean(isSavingWatch[printer.id]);
+                const isSavingSmartWatchSettings = Boolean(isSavingSmartWatch[printer.id]);
                 const watchDraft = watchDrafts[printer.id] ?? {
                   is_enabled: printer.watch_config?.is_enabled ?? false,
                   retention_hours: printer.watch_config?.retention_hours ?? 4,
+                };
+                const smartWatchDraft = smartWatchDrafts[printer.id] ?? {
+                  is_enabled: printer.smart_watch_config?.is_enabled ?? false,
                 };
                 return (
                   <article className="panel stack-sm" key={printer.id}>
@@ -314,6 +359,45 @@ export function PrintersPage() {
                     </div>
 
                     {printer.notes ? <p>{printer.notes}</p> : <p className="muted">No notes yet.</p>}
+
+                    <div className="watch-config-panel stack-sm">
+                      <div>
+                        <h5>Smart Watch</h5>
+                        <p className="muted">
+                          Automatically start a full recording session when Moonraker reports a print begin, keep it active
+                          through pauses, and auto-save it when the print ends.
+                        </p>
+                      </div>
+                      <label className="checkbox-row">
+                        <input
+                          checked={smartWatchDraft.is_enabled}
+                          onChange={(event) =>
+                            setSmartWatchDrafts((current) => ({
+                              ...current,
+                              [printer.id]: { is_enabled: event.target.checked },
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span>Enable Smart Watch for this printer</span>
+                      </label>
+                      {printer.smart_watch_config?.last_observed_filename || printer.smart_watch_config?.last_observed_state ? (
+                        <div className="muted watch-status-note">
+                          Last seen: {printer.smart_watch_config?.last_observed_filename ?? "unknown file"} /{" "}
+                          {printer.smart_watch_config?.last_observed_state ?? "unknown state"}
+                        </div>
+                      ) : null}
+                      <div className="card-actions">
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() => void handleSaveSmartWatch(printer)}
+                          disabled={isSavingSmartWatchSettings || isDeleting}
+                        >
+                          {isSavingSmartWatchSettings ? "Saving Smart Watch..." : "Apply Smart Watch settings"}
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="watch-config-panel stack-sm">
                       <div>

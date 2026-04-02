@@ -206,6 +206,14 @@ select {
   text-transform: capitalize;
 }
 
+.pill-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .status-pill.active {
   background: #e2f4e8;
   color: #1a6b37;
@@ -214,6 +222,20 @@ select {
 .status-pill.inactive {
   background: #eceff4;
   color: #576475;
+}
+
+.source-pill {
+  border-radius: 999px;
+  padding: 0.32rem 0.68rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.source-pill.smart-watch {
+  background: rgba(33, 73, 111, 0.12);
+  color: #21496f;
 }
 
 .connection-result {
@@ -549,6 +571,12 @@ select {
 
 .watch-config-panel h5 {
   margin: 0;
+}
+
+.watch-status-note {
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(244, 248, 252, 0.98);
 }
 
 @media (max-width: 700px) {
